@@ -254,6 +254,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     <span class="role" id="role" hidden>관리팀</span>
     <span class="role" id="role2" hidden>해썹 확정</span>
     <button class="btn" id="btn-refresh" type="button" hidden>새로고침</button>
+    <button class="btn" id="btn-export" type="button" hidden>엑셀 다운로드</button>
     <button class="btn" id="btn-users" type="button" hidden>사용자 관리</button>
     <button class="btn primary" id="btn-new" type="button">+ 새 접수</button>
     <button class="bell amber" id="bell2" type="button" hidden></button>
@@ -272,6 +273,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 <script src="config.js"></script>
 <script src="template.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const CFG = window.APP_CONFIG || {};
 const TEMPLATE_B64 = window.TEMPLATE_B64 || "";
@@ -514,6 +516,7 @@ function go(v) { view = v; editing = v.name === "new" ? "new" : null; render(); 
 $("btn-new").addEventListener("click", () => go({ name: "new" }));
 $("btn-refresh").addEventListener("click", () => load());
 $("btn-users").addEventListener("click", () => go({ name: "users" }));
+$("btn-export").addEventListener("click", () => go({ name: "export" }));
 $("bell").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
 $("bell2").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
 
@@ -523,6 +526,7 @@ function render() {
   $("role2").hidden = !isApprover();
   $("btn-refresh").hidden = !seeAll();
   $("btn-users").hidden = !isAdmin();
+  $("btn-export").hidden = !seeAll();
   $("who").hidden = !me; $("btn-logout").hidden = !token;
   $("who").textContent = me ? (me.name || me.email) : "";
   const pend = all.filter((r) => stOf(r) === "처리대기" || (stOf(r) === "수선체크대기" && !isHaccp(r))).length;
@@ -536,6 +540,7 @@ function render() {
   const root = $("view");
   if (view.name === "new") return root.replaceChildren(renderReporterForm(null));
   if (view.name === "users" && isAdmin()) return root.replaceChildren(renderUsers());
+  if (view.name === "export" && seeAll()) return root.replaceChildren(renderExport());
   if (view.name === "detail") {
     const rec = records.get(view.id);
     if (rec) return root.replaceChildren(renderDetail(rec));
@@ -826,6 +831,110 @@ function renderUsers() {
     h("div", { class: "form-actions" }, h("button", { class: "btn primary", type: "submit" }, "사용자 추가")));
   add.addEventListener("submit", async (e) => { e.preventDefault(); await run("saveUser", { email: email.value.trim(), name: name.value.trim(), role: role.value }, "추가했습니다."); if (!err.textContent) { email.value = ""; name.value = ""; } });
   body.append(err, h("div", { class: "section-title" }, "사용자 추가"), add);
+  return el;
+}
+
+/* ---------------- 엑셀 다운로드 (관리팀·확정 담당자·열람) ---------------- */
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayOf = (v) => String(v || "").slice(0, 10);
+const daysBetween = (a, b) => { const x = Date.parse(dayOf(a)), y = Date.parse(dayOf(b)); return isNaN(x) || isNaN(y) ? null : Math.round((y - x) / 86400000); };
+const photoLinks = (refs) => (refs || []).map((p) => `https://drive.google.com/file/d/${p.g}/view`).join("\n");
+function exportRows(list) {
+  return list.map((r) => {
+    const R = r.r || {}, A = r.a, Pp = r.p || {}, X = r.x || {}, K = r.k;
+    return {
+      "접수번호": r.no || "", "상태": LABEL[stOf(r)] || stOf(r), "사업장": siteOf(r), "해썹 구역(실)": roomOf(r),
+      "접수일시": fmt(R.received), "접수자": R.name || "", "소속팀": R.team || "", "발생 위치": R.location || "", "보수 내용": R.problem || "",
+      "발견 일시": fmt(R.found), "위생구역 접촉": R.hygiene || "", "가동 중단 필요": R.stop || "", "긴급도": R.urgency || "", "사진(장)": (R.photos || []).length,
+      "해썹 확정": !isHaccp(r) ? "해당 없음" : A ? (A.ok ? "확정" : "반려") : stOf(r) === "확정대기" ? "대기" : "",
+      "확정자": A?.by || "", "확정 일시": A?.at || "", "확정 담당자 의견": A?.memo || "",
+      "처리 담당자/업체": Pp.handler || "", "처리 예정일": Pp.due || "", "처리 방안": Pp.method || "", "처리방안 입력자": Pp.by || "",
+      "처리 완료일": X.done || "", "처리 결과": X.result || "", "완료 사진(장)": (X.photos || []).length, "위생 재가동 확인": X.sign || "", "비고": X.memo || "", "결과 입력자": X.by || "",
+      "수선 완료 체크": K ? (K.ok ? "완료" : "재처리 요청") : "", "체크자": K?.by || "", "체크 일시": K?.at || "", "체크 의견": K?.memo || "",
+      "처리일수(접수→처리완료)": X.done ? daysBetween(R.received, X.done) : "",
+      "사진 링크": photoLinks(R.photos), "완료 사진 링크": photoLinks(X.photos), "접수서(Word)": r.doc || "",
+    };
+  });
+}
+function summaryAoa(list, from, to, siteLabel) {
+  const aoa = [["시설 보수 접수 현황 요약"], [], ["기간 (접수일 기준)", `${from || "처음"} ~ ${to || "오늘"}`], ["사업장", siteLabel], ["만든 날짜", ymd(new Date())], ["전체 접수", list.length]];
+  const done = list.filter((r) => stOf(r) === "완료");
+  const days = list.map((r) => (r.x?.done ? daysBetween(r.r?.received, r.x.done) : null)).filter((d) => d != null && d >= 0);
+  const avg = (arr) => (arr.length ? Math.round((arr.reduce((s, d) => s + d, 0) / arr.length) * 10) / 10 : "");
+  aoa.push(["완료", done.length], ["진행 중", list.length - done.length], ["긴급 접수", list.filter(isUrgent).length], ["평균 처리일수 (접수→처리완료)", avg(days)], []);
+  const group = (title, keyFn, order) => {
+    aoa.push([title, "전체", "완료", "진행 중", "긴급", "평균 처리일수"]);
+    const keys = order || [...new Set(list.map(keyFn))].sort();
+    keys.forEach((k) => {
+      const g = list.filter((r) => keyFn(r) === k);
+      if (!g.length) return;
+      const d = g.map((r) => (r.x?.done ? daysBetween(r.r?.received, r.x.done) : null)).filter((x) => x != null && x >= 0);
+      aoa.push([k || "(미기재)", g.length, g.filter((r) => stOf(r) === "완료").length, g.filter((r) => stOf(r) !== "완료").length, g.filter(isUrgent).length, avg(d)]);
+    });
+    aoa.push([]);
+  };
+  group("사업장별", siteOf, SITES);
+  group("상태별", (r) => LABEL[stOf(r)] || stOf(r), ["확정대기", "반려", "처리대기", "처리중", "수선체크대기", "완료"].map((s) => LABEL[s]));
+  group("소속팀별", (r) => r.r?.team || "", [...TEAMS, ""]);
+  const hc = list.filter(isHaccp);
+  if (hc.length) { aoa.push(["※ 아래는 해썹생산시설 건만"]); const all = list; list = hc; group("해썹 구역별", roomOf, [...ROOMS.flatMap(([, rs]) => rs), ""]); list = all; }
+  group("월별 (접수월)", (r) => dayOf(r.r?.received).slice(0, 7));
+  return aoa;
+}
+function renderExport() {
+  const el = h("div");
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+  const body = h("div", { class: "sec-b" });
+  el.append(h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "엑셀 다운로드")), body));
+  const now = new Date();
+  const from = h("input", { class: "in", type: "date", id: "x-from", value: ymd(new Date(now.getFullYear(), now.getMonth(), 1)) });
+  const to = h("input", { class: "in", type: "date", id: "x-to", value: ymd(now) });
+  const site = h("select", { class: "in", id: "x-site" }, h("option", { value: "all" }, "전체 사업장"), SITES.map((s) => h("option", { value: s }, s)));
+  const incDone = h("select", { class: "in", id: "x-status" }, h("option", { value: "all" }, "전체 (완료 포함)"), h("option", { value: "open" }, "진행 중인 건만"), h("option", { value: "done" }, "완료된 건만"));
+  const quick = (label, f, t2) => h("button", { type: "button", class: "chipf", onclick: () => { from.value = f; to.value = t2; count(); } }, label);
+  const y = now.getFullYear(), m = now.getMonth();
+  const info = h("p", { class: "note" });
+  const pick = () => [...records.values()].filter((r) => {
+    const d = dayOf(r.r?.received || r.createdAt);
+    if (from.value && d < from.value) return false;
+    if (to.value && d > to.value) return false;
+    if (site.value !== "all" && siteOf(r) !== site.value) return false;
+    if (incDone.value === "open" && stOf(r) === "완료") return false;
+    if (incDone.value === "done" && stOf(r) !== "완료") return false;
+    return true;
+  }).sort((a, b) => String(a.r?.received).localeCompare(String(b.r?.received)));
+  const count = () => { info.textContent = `조건에 맞는 접수 ${pick().length}건`; };
+  [from, to, site, incDone].forEach((x) => x.addEventListener("change", count));
+  const btn = h("button", { class: "btn primary", type: "button" }, "엑셀 파일 받기");
+  btn.addEventListener("click", async () => {
+    const list = pick();
+    if (!list.length) { toast("조건에 맞는 접수가 없습니다. 기간이나 사업장을 바꿔 보세요."); return; }
+    if (!window.XLSX) { toast("엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."); return; }
+    const wb = XLSX.utils.book_new();
+    const s1 = XLSX.utils.aoa_to_sheet(summaryAoa(list, from.value, to.value, site.value === "all" ? "전체" : site.value));
+    s1["!cols"] = [{ wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, s1, "요약");
+    const rows = exportRows(list);
+    const s2 = XLSX.utils.json_to_sheet(rows);
+    s2["!cols"] = Object.keys(rows[0]).map((k) => ({ wch: ["보수 내용", "처리 방안", "처리 결과", "확정 담당자 의견", "체크 의견"].includes(k) ? 40 : /링크|Word/.test(k) ? 45 : ["발생 위치", "처리 담당자/업체"].includes(k) ? 24 : 13 }));
+    s2["!autofilter"] = { ref: s2["!ref"] };
+    XLSX.utils.book_append_sheet(wb, s2, "접수 목록");
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const name = `시설보수_접수현황_${(from.value || "처음").replace(/-/g, "")}-${(to.value || ymd(now)).replace(/-/g, "")}${site.value === "all" ? "" : "_" + site.value}.xlsx`;
+    const a = h("a", { href: URL.createObjectURL(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("엑셀 파일을 내려받았습니다.");
+  });
+  body.append(
+    h("p", { class: "note", style: "margin-bottom:12px" }, "접수일 기준으로 기간과 사업장을 골라 받습니다. 파일에는 보고용 '요약' 시트(사업장·상태·팀·구역·월별 건수와 평균 처리일수)와 전체 칸이 담긴 '접수 목록' 시트가 들어갑니다."),
+    h("div", { class: "toolbar" }, quick("이번 달", ymd(new Date(y, m, 1)), ymd(now)), quick("지난 달", ymd(new Date(y, m - 1, 1)), ymd(new Date(y, m, 0))),
+      quick("올해", ymd(new Date(y, 0, 1)), ymd(now)), quick("전체 기간", "", "")),
+    h("div", { class: "form" },
+      h("div", { class: "grid2" }, fld("시작일", from, { forId: "x-from" }), fld("종료일", to, { forId: "x-to" })),
+      h("div", { class: "grid2" }, fld("사업장", site, { forId: "x-site" }), fld("진행 상태", incDone, { forId: "x-status" })),
+      h("div", { class: "form-actions" }, info, btn)));
+  count();
+  if (!loaded) load(true).then(count);
   return el;
 }
 
