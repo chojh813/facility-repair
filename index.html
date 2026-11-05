@@ -1,0 +1,1130 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>햅썹 시설 보수 접수</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+
+/* Layout: a work-order board. List of requests on top, each request opens into a three-stage record (접수 → 처리방안 → 처리결과). */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --ink: #1b1f24;
+  --ink-2: #4b535d;
+  --muted: #7d8590;
+  --line: #d8dde3;
+  --accent: #2f5597;
+  --accent-soft: #e3eaf6;
+  --accent-ink: #ffffff;
+  --alert: #c00000;
+  --alert-soft: #fbe9e9;
+  --warn: #a15c00;
+  --warn-soft: #fdf1df;
+  --ok: #2e7d32;
+  --ok-soft: #e5f3e6;
+  --head: #d9e2f3;
+  --font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171b; --surface: #1d2126; --surface-2: #23282e; --ink: #e7e9ec; --ink-2: #b7bec7; --muted: #8a929c; --line: #333a42;
+    --accent: #7aa2e3; --accent-soft: #23314a; --accent-ink: #0e1420; --alert: #ff7d7d; --alert-soft: #3a2124;
+    --warn: #f0b35a; --warn-soft: #3a2e1c; --ok: #7bc47f; --ok-soft: #1f3322; --head: #2a3550; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171b; --surface: #1d2126; --surface-2: #23282e; --ink: #e7e9ec; --ink-2: #b7bec7; --muted: #8a929c; --line: #333a42;
+  --accent: #7aa2e3; --accent-soft: #23314a; --accent-ink: #0e1420; --alert: #ff7d7d; --alert-soft: #3a2124;
+  --warn: #f0b35a; --warn-soft: #3a2e1c; --ok: #7bc47f; --ok-soft: #1f3322; --head: #2a3550; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+button { font: inherit; cursor: pointer; color: inherit; }
+.wrap { max-width: 920px; margin: 0 auto; }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); padding-block: 10px; }
+.top .wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+.brand-mark { min-width: 30px; height: 30px; padding: 0 7px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; font-size: 12px; letter-spacing: .02em; flex: none; }
+.brand b { font-size: 15.5px; display: block; line-height: 1.2; }
+.brand small { color: var(--muted); font-size: 12px; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 13px; border-radius: 7px; font-size: 13.5px; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.danger { color: var(--alert); border-color: var(--alert); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn:focus-visible, .seg button:focus-visible, .card:focus-visible, .chipf:focus-visible, .add-photo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.banner { margin: 12px auto 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--ink); font-size: 13px; }
+
+main { padding-block: 18px 56px; }
+
+/* summary */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat span { color: var(--muted); font-size: 12px; display: block; }
+.stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat.alert b { color: var(--alert); }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.chipf { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.chipf[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.toolbar .search { flex: 1 1 180px; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font: inherit; color: var(--ink); }
+.toolbar .spacer { flex: 1 1 auto; }
+
+/* list */
+.list { display: grid; gap: 8px; }
+.card { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; position: relative; }
+.card:hover { border-color: var(--accent); }
+.card.urgent::before { content: ""; position: absolute; left: -1px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--alert); }
+.thumb64 { width: 64px; height: 52px; border-radius: 6px; background: var(--surface-2); object-fit: cover; display: block; border: 1px solid var(--line); }
+.thumb64.none { display: grid; place-items: center; color: var(--muted); font-size: 11px; }
+.card-main { min-width: 0; }
+.card-title { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-desc { color: var(--ink-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-meta { color: var(--muted); font-size: 12px; display: flex; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; }
+.card-side { display: grid; justify-items: end; gap: 5px; }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.tag { font-size: 11.5px; padding: 1px 7px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+.tag.red { background: var(--alert-soft); color: var(--alert); }
+.tag.amber { background: var(--warn-soft); color: var(--warn); }
+.pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.s0 { background: var(--warn-soft); color: var(--warn); }
+.pill.s1 { background: var(--accent-soft); color: var(--accent); }
+.pill.s2 { background: var(--ok-soft); color: var(--ok); }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 36px 20px; text-align: center; color: var(--ink-2); }
+.empty b { display: block; font-size: 16px; color: var(--ink); margin-bottom: 4px; }
+.empty p { margin: 0 0 14px; }
+
+/* detail */
+.back { margin-bottom: 10px; }
+.dhead { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; margin-bottom: 12px; }
+.dhead-top { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.dhead h2 { margin: 0; font-size: 19px; line-height: 1.35; flex: 1 1 260px; min-width: 0; text-wrap: balance; }
+.dno { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.dactions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.step { padding: 9px 12px; font-size: 12.5px; color: var(--muted); border-right: 1px solid var(--line); min-width: 0; }
+.step:last-child { border-right: 0; }
+.step b { display: block; font-size: 13.5px; color: var(--ink-2); }
+.step.done { background: var(--ok-soft); }
+.step.done b { color: var(--ok); }
+.step.now { background: var(--accent-soft); }
+.step.now b { color: var(--accent); }
+
+.sec { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; overflow: hidden; }
+.sec-h { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: var(--head); }
+.sec-h h3 { margin: 0; font-size: 14.5px; flex: 1 1 auto; }
+.sec-h .who { color: var(--ink-2); font-size: 12px; }
+.sec-b { padding: 14px 16px; }
+.sec.locked .sec-b { color: var(--muted); }
+
+dl.kv { display: grid; grid-template-columns: 150px minmax(0, 1fr); margin: 0; border-top: 1px solid var(--line); }
+dl.kv dt, dl.kv dd { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
+dl.kv dt { color: var(--ink-2); font-weight: 500; font-size: 13px; padding-right: 10px; }
+dl.kv dd { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+dl.kv dd.na { color: var(--muted); }
+
+.gallery { display: flex; flex-wrap: wrap; gap: 8px; }
+.gallery a, .gallery .ph { display: block; width: 120px; height: 92px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
+.gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* forms */
+.form { display: grid; gap: 14px; }
+.fld { display: grid; gap: 5px; min-width: 0; }
+.fld > label, .fld > .lab { font-weight: 700; font-size: 13px; }
+.req { color: var(--alert); margin-left: 2px; }
+.fld .hint { color: var(--muted); font-size: 12px; }
+.in { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 7px; padding: 8px 10px; font: inherit; }
+.in:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+textarea.in { resize: vertical; min-height: 92px; line-height: 1.55; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.inline .in { flex: 1 1 160px; width: auto; }
+.seg { display: inline-flex; justify-self: start; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 7px 18px; font-size: 13.5px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.seg button[aria-pressed="true"].hot { background: var(--alert); color: #fff; }
+.fld.missing .seg, .fld.missing .photos .add-photo { border-color: var(--alert); }
+.fld.missing > .lab { color: var(--alert); }
+.photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.pthumb { position: relative; width: 104px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
+.pthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pthumb button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 12px; line-height: 22px; padding: 0; }
+.add-photo { width: 104px; height: 80px; border: 1.5px dashed var(--line); border-radius: 6px; background: transparent; color: var(--muted); font-size: 12.5px; display: grid; place-content: center; justify-items: center; gap: 2px; }
+.add-photo strong { font-size: 20px; font-weight: 400; line-height: 1; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding-top: 4px; }
+.form-err { color: var(--alert); font-size: 13px; margin-right: auto; align-self: center; }
+.note { color: var(--muted); font-size: 12.5px; font-style: italic; margin: 0; }
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--alert); } 50% { box-shadow: 0 0 0 4px var(--alert-soft); border-color: var(--alert); } }
+.pending-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--alert); margin-right: 6px; vertical-align: 1px; animation: blink 1s ease-in-out infinite; }
+.bell { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--alert); color: var(--alert); background: var(--alert-soft); font-weight: 700; padding: 6px 12px; border-radius: 999px; font-size: 13px; white-space: nowrap; animation: glow 1.4s ease-in-out infinite; }
+.bell .pending-dot { margin-right: 0; }
+.card.pending { border-color: var(--alert); animation: glow 1.4s ease-in-out infinite; }
+.pill.s0.blink { animation: blink 1s ease-in-out infinite; background: var(--alert); color: #fff; }
+.role { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.lockbox { display: flex; gap: 10px; align-items: flex-start; color: var(--ink-2); }
+.lockbox b { color: var(--ink); display: block; }
+@keyframes glowA { 0%, 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--warn); } 50% { box-shadow: 0 0 0 4px var(--warn-soft); border-color: var(--warn); } }
+.pending-dot.amber { background: var(--warn); }
+.bell.amber { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); animation-name: glowA; }
+.bell.amber .pending-dot { background: var(--warn); }
+.card.waiting { border-color: var(--warn); animation: glowA 1.4s ease-in-out infinite; }
+.pill.wait { background: var(--warn); color: #fff; animation: blink 1s ease-in-out infinite; }
+.pill.rej { background: var(--alert-soft); color: var(--alert); border: 1px solid var(--alert); }
+.grp { display: flex; align-items: baseline; gap: 8px; margin: 12px 2px 0; font-weight: 700; color: var(--ink); }
+.grp:first-child { margin-top: 0; }
+.grp small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.approve { display: grid; gap: 10px; margin-top: 12px; }
+.approve:first-child { margin-top: 0; }
+.approve .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.who-list { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.who-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.who-list li span { flex: 1 1 auto; min-width: 0; }
+.who-list img { width: 26px; height: 26px; border-radius: 50%; }
+.hits { display: grid; gap: 4px; margin-top: 6px; }
+.hits button { display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 10px; }
+.hits img { width: 22px; height: 22px; border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) { .pending-dot, .bell, .card.pending, .card.waiting, .pill.s0.blink, .pill.wait { animation: none; } }
+@media (max-width: 640px) { .top .wrap { flex-wrap: wrap; } .bell { order: 5; width: 100%; justify-content: center; } }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 9px 16px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 32px); z-index: 20; }
+
+@media (max-width: 640px) {
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .card { grid-template-columns: 52px minmax(0, 1fr); }
+  .thumb64 { width: 52px; height: 44px; }
+  .card-side { grid-column: 1 / -1; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
+  .tags { justify-content: flex-start; }
+  .grid2 { grid-template-columns: 1fr; }
+  dl.kv { grid-template-columns: 1fr; }
+  dl.kv dt { border-bottom: 0; padding-bottom: 0; }
+  .brand small { display: none; }
+  .top .wrap { flex-wrap: nowrap; }
+  .top .btn { padding: 7px 10px; }
+  .long { display: none; }
+  .step { padding: 8px; }
+  .step span { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) { .card, .btn, .chipf { transition: border-color .12s, background .12s; } }
+
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+.who-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+#gsi-btn { min-height: 36px; display: flex; align-items: center; }
+.hero { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 12px; margin-bottom: 16px; }
+.hero h2 { margin: 0; font-size: 19px; }
+.hero p { margin: 0; color: var(--ink-2); }
+.hero .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.section-title { font-weight: 700; margin: 6px 2px 8px; }
+.doclink { font-size: 13px; color: var(--accent); }
+.spin { opacity: .6; pointer-events: none; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.who-list li { flex-wrap: wrap; }
+.who-list li select.in { width: auto; flex: 0 1 300px; max-width: 100%; }
+@media (max-width: 640px) {
+  .top .wrap { flex-wrap: wrap; row-gap: 8px; }
+  .brand { flex: 1 1 100%; margin-right: 0; }
+  .brand small { display: block; }
+  .top .btn, .bell { padding: 6px 10px; font-size: 13px; }
+  .bell { order: 0; width: auto; }
+  .steps .step b { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header class="top gutter">
+  <div class="wrap">
+    <div class="brand"><div class="brand-mark">보수</div><div><b>시설 보수 접수</b><small>해썹생산시설 · 영도 · 온천 · 마린 · 도모헌</small></div></div>
+    <span class="role" id="role" hidden>관리팀</span>
+    <span class="role" id="role2" hidden>해썹 확정</span>
+    <button class="btn" id="btn-refresh" type="button" hidden>새로고침</button>
+    <button class="btn" id="btn-users" type="button" hidden>사용자 관리</button>
+    <button class="btn primary" id="btn-new" type="button">+ 새 접수</button>
+    <button class="bell amber" id="bell2" type="button" hidden></button>
+    <button class="bell" id="bell" type="button" hidden></button>
+    <span class="who-chip" id="who" hidden></span>
+    <button class="btn ghost" id="btn-logout" type="button" hidden>로그아웃</button>
+    <div id="gsi-btn"></div>
+  </div>
+  <div class="wrap banner" id="banner" hidden></div>
+</header>
+
+<main class="gutter"><div class="wrap" id="view"></div></main>
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="file-input" accept="image/*" multiple hidden>
+
+<script src="config.js"></script>
+<script src="template.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const CFG = window.APP_CONFIG || {};
+const TEMPLATE_B64 = window.TEMPLATE_B64 || "";
+const TEAMS = ["로스팅팀", "로스팅팀(생두소분)", "제품생산(원두)팀", "제품생산(가공_반제품)팀", "제품생산(가공_완제품)팀", "출고팀", "바리스타팀", "베이커리팀"];
+const SITES = ["해썹생산시설", "영도매장", "온천매장", "마린매장", "도모헌매장"];
+const HACCP = "해썹생산시설";
+const ROOMS = [
+  ["로스팅팀", ["생두소분실", "로스팅실", "사이클론실"]],
+  ["출고팀", ["출고실"]],
+  ["제품생산(가공)팀", ["드립백 반제품포장실", "드립백원두분쇄실", "드립백완제품포장실", "부자재실"]],
+  ["제품생산(원두)팀", ["원두포장실", "원두분쇄실"]],
+  ["기타", ["전실", "위생전실1", "위생전실2", "위생전실3", "휴게실"]],
+];
+const roomOf = (rec) => ((rec?.r?.site || HACCP) === HACCP ? rec?.r?.room || "" : "");
+const STATUS = ["접수", "처리중", "완료"]; // Word 양식의 '처리 상태' 칸
+const LABEL = { "확정대기": "해썹 확정 대기", "반려": "반려", "처리대기": "처리 대기", "처리중": "처리중", "수선체크대기": "수선 체크 대기", "완료": "완료" };
+const PILL = { "확정대기": "pill wait", "반려": "pill rej", "처리대기": "pill s0 blink", "처리중": "pill s1", "수선체크대기": "pill wait", "완료": "pill s2" };
+
+/* ---------------- helpers ---------------- */
+const $ = (id) => document.getElementById(id);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  return el;
+}
+const pad = (n) => String(n).padStart(2, "0");
+function nowLocal() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+const today = () => nowLocal().slice(0, 10);
+const fmt = (v) => (v ? String(v).replace("T", " ") : "");
+const toInput = (v) => (v ? String(v).replace(" ", "T").slice(0, 16) : "");
+const dstr = (at) => (at ? String(at).slice(0, 10) : "");
+const firstLine = (s) => (s || "").split(/\r?\n/).find((l) => l.trim()) || "";
+const nameOf = (n) => n || "";
+async function resolveNames() {}
+let toastT;
+function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), 3800); }
+function showBanner(t) { const b = $("banner"); b.textContent = t; b.hidden = !t; }
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+/* ---------------- server ---------------- */
+let token = null;
+try { token = sessionStorage.getItem("repair-token"); } catch {}
+let me = null; // {email,name,admin,approver,viewer,registered}
+const isAdmin = () => !!me?.admin, isApprover = () => !!me?.approver;
+const seeAll = () => !!(me && (me.admin || me.approver || me.viewer));
+async function api(action, payload = {}) {
+  if (!CFG.SCRIPT_URL) throw Object.assign(new Error("아직 설정이 끝나지 않았습니다. config.js에 구글 시트 연결 주소(SCRIPT_URL)를 넣어 주세요."), { code: "config" });
+  let res;
+  try { res = await fetch(CFG.SCRIPT_URL, { method: "POST", body: JSON.stringify({ action, token: token || undefined, ...payload }) }); }
+  catch { throw new Error("서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요."); }
+  let j; try { j = await res.json(); } catch { throw new Error("서버 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+  if (!j.ok) {
+    if (j.error === "login") { signOut(); toast(j.message || "로그인이 만료되었습니다. 다시 로그인해 주세요."); try { google.accounts.id.prompt(); } catch {} }
+    throw Object.assign(new Error(j.message || j.error || "요청을 처리하지 못했습니다."), { code: j.error });
+  }
+  return j;
+}
+
+/* ---------------- my submissions (this browser) ---------------- */
+let mine = store.get("repair-mine", []);
+const keyOf = (id) => mine.find((m) => m.id === id)?.key;
+function rememberMine(id, key, no) { mine = [{ id, key, no }, ...mine.filter((m) => m.id !== id)].slice(0, 100); store.set("repair-mine", mine); }
+
+/* ---------------- data ---------------- */
+const records = new Map();
+let loaded = false, loading = false;
+async function load(quiet) {
+  if (loading) return; loading = true;
+  if (!quiet) $("btn-refresh").classList.add("spin");
+  try {
+    if (seeAll()) {
+      const j = await api("list");
+      records.clear(); j.records.forEach((r) => records.set(r.id, r));
+    } else {
+      records.clear();
+      if (mine.length) { const j = await api("mine", { items: mine.map(({ id, key }) => ({ id, key })) }); j.records.forEach((r) => records.set(r.id, r)); }
+    }
+    loaded = true;
+    if (!editing) render();
+  } catch (e) { if (e.code === "config") showBanner(e.message); else if (!quiet) toast(e.message); loaded = true; if (!editing) render(); }
+  finally { loading = false; $("btn-refresh").classList.remove("spin"); }
+}
+setInterval(() => { if (document.visibilityState === "visible" && !editing) load(true); }, 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !editing && loaded) load(true); });
+
+/* ---------------- Google login ---------------- */
+function initGis() {
+  if (!window.google?.accounts?.id || !CFG.CLIENT_ID) return;
+  google.accounts.id.initialize({ client_id: CFG.CLIENT_ID, callback: onCredential, auto_select: true, cancel_on_tap_outside: true });
+  drawLogin();
+}
+function drawLogin() {
+  const slot = $("gsi-btn");
+  slot.replaceChildren();
+  if (token || !window.google?.accounts?.id || !CFG.CLIENT_ID) return;
+  google.accounts.id.renderButton(slot, { type: "standard", theme: "outline", size: "medium", text: "signin", shape: "pill", locale: "ko" });
+}
+async function onCredential(resp) {
+  token = resp.credential;
+  try { sessionStorage.setItem("repair-token", token); } catch {}
+  await whoAmI();
+}
+async function whoAmI() {
+  if (!token) { me = null; return; }
+  try {
+    const j = await api("me");
+    me = j.user;
+    if (me && !me.registered) showBanner(`${me.email} 계정은 명단에 없어서 관리자 기능을 쓸 수 없습니다. 접수는 그대로 할 수 있습니다. 필요하면 관리팀에 등록을 요청하세요.`);
+    else showBanner("");
+  } catch (e) { me = null; }
+  drawLogin(); await load();
+}
+function signOut() {
+  token = null; me = null;
+  try { sessionStorage.removeItem("repair-token"); } catch {}
+  try { google.accounts.id.disableAutoSelect(); } catch {}
+  drawLogin(); render();
+}
+$("btn-logout").addEventListener("click", () => { signOut(); load(); });
+
+/* ---------------- photos ---------------- */
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => res({ img, url }); img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); };
+    img.src = url;
+  });
+}
+async function toJpeg(file, max = 1600, q = 0.82) {
+  const { img, url } = await loadImage(file);
+  const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * s), hh = Math.round(img.naturalHeight * s);
+  const c = h("canvas"); c.width = w; c.height = hh;
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh); ctx.drawImage(img, 0, 0, w, hh);
+  URL.revokeObjectURL(url);
+  const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", q));
+  return { blob, w, h: hh };
+}
+const blobToB64 = (b) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(b); });
+const b64ToBlob = (s) => { const bin = atob(s); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: "image/jpeg" }); };
+
+/* 사진 원본은 서버에서 한 건 단위로 받아 둡니다 (Word 접수서, 미리보기 대체용) */
+const photoCache = {}; // driveId -> base64
+const photoReq = {};
+function photoData(rec) {
+  if (!photoReq[rec.id]) photoReq[rec.id] = api("photos", { id: rec.id, key: keyOf(rec.id) }).then((j) => Object.assign(photoCache, j.photos)).catch(() => {});
+  return photoReq[rec.id];
+}
+const thumbUrl = (g, w = 400) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(g)}&sz=w${w}`;
+function imgFor(ref, cls, rec) {
+  const img = h("img", { alt: "현장 사진", class: cls || null, loading: "lazy", referrerpolicy: "no-referrer" });
+  if (ref.url) { img.src = ref.url; return img; }
+  let tried = false;
+  img.onerror = async () => {
+    if (tried || !rec) { img.style.visibility = "hidden"; return; }
+    tried = true;
+    await photoData(rec);
+    if (photoCache[ref.g]) img.src = "data:image/jpeg;base64," + photoCache[ref.g]; else img.style.visibility = "hidden";
+  };
+  img.src = thumbUrl(ref.g);
+  return img;
+}
+async function photoBlob(ref) {
+  if (!photoCache[ref.g]) throw new Error("photo");
+  return b64ToBlob(photoCache[ref.g]);
+}
+
+let pickHandler = null;
+$("file-input").addEventListener("change", (e) => { const f = Array.from(e.target.files || []); e.target.value = ""; pickHandler && pickHandler(f); });
+function photoPicker(existing = [], rec) {
+  const items = existing.map((ref) => ({ ref }));
+  const box = h("div", { class: "photos" });
+  function draw() {
+    box.replaceChildren();
+    items.forEach((it, i) => {
+      const img = it.ref ? imgFor(it.ref, null, rec) : h("img", { src: it.url, alt: "새 사진" });
+      box.append(h("div", { class: "pthumb" }, img, h("button", { type: "button", "aria-label": "사진 삭제", onclick: () => { items.splice(i, 1); draw(); box.dispatchEvent(new Event("change")); } }, "✕")));
+    });
+    if (items.length < 10) box.append(h("button", { type: "button", class: "add-photo", onclick: () => { pickHandler = add; $("file-input").click(); } }, h("strong", {}, "+"), "사진 추가"));
+  }
+  async function add(files) {
+    let bad = 0;
+    for (const f of files) {
+      if (items.length >= 10) break;
+      try { const p = await toJpeg(f); items.push({ ...p, url: URL.createObjectURL(p.blob) }); } catch { bad++; }
+    }
+    draw(); box.dispatchEvent(new Event("change"));
+    if (bad) toast(`${bad}개 파일을 열 수 없습니다. JPG나 PNG 사진으로 올려 주세요.`);
+  }
+  box.count = () => items.length;
+  box.collect = async () => ({
+    keep: items.filter((it) => it.ref).map((it) => it.ref.g),
+    photos: await Promise.all(items.filter((it) => !it.ref).map(async (it) => ({ b64: await blobToB64(it.blob), w: it.w, h: it.h }))),
+  });
+  draw();
+  return box;
+}
+
+function seg(options, value, hot) {
+  const el = h("div", { class: "seg", role: "group" });
+  el.value = value || "";
+  const draw = () => el.querySelectorAll("button").forEach((b) => {
+    const on = b.textContent === el.value;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("hot", on && b.textContent === hot);
+  });
+  options.forEach((o) => el.append(h("button", { type: "button", onclick: () => { el.value = el.value === o ? "" : o; draw(); el.dispatchEvent(new Event("change")); } }, o)));
+  draw();
+  return el;
+}
+const fld = (label, control, opts = {}) => h("div", { class: "fld" + (opts.cls ? " " + opts.cls : "") },
+  h(opts.forId ? "label" : "div", opts.forId ? { for: opts.forId } : { class: "lab" }, label, opts.req ? h("span", { class: "req" }, "*") : null),
+  control, opts.hint ? h("div", { class: "hint" }, opts.hint) : null);
+
+/* ---------------- status helpers ---------------- */
+const siteOf = (rec) => rec?.r?.site || HACCP;
+const isHaccp = (rec) => siteOf(rec) === HACCP;
+const stOf = (rec) => rec?.status || "처리대기";
+const pill = (rec) => h("span", { class: PILL[stOf(rec)] || "pill s0" }, LABEL[stOf(rec)] || stOf(rec));
+const docStatus = (rec) => ({ "확정대기": "접수", "반려": "접수", "처리대기": "접수", "처리중": "처리중", "수선체크대기": "처리중", "완료": "완료" }[stOf(rec)] || "접수");
+const canCheck = (rec) => (isHaccp(rec) ? isApprover() : isAdmin());
+const isUrgent = (r) => r.r?.urgency === "긴급";
+const isMine = (r) => { const s = stOf(r);
+  return (isApprover() && (s === "확정대기" || (s === "수선체크대기" && isHaccp(r)))) || (isAdmin() && (s === "처리대기" || (s === "수선체크대기" && !isHaccp(r)))); };
+const ownerCanEdit = (rec) => !!keyOf(rec.id) && ["확정대기", "반려", "처리대기"].includes(stOf(rec));
+
+/* ---------------- view state ---------------- */
+let view = { name: "list" };
+let editing = null;
+let filter = "open", query = "", siteFilter = "all";
+let groupTeam = store.get("repair-group-team", true);
+
+function go(v) { view = v; editing = v.name === "new" ? "new" : null; render(); window.scrollTo(0, 0); }
+$("btn-new").addEventListener("click", () => go({ name: "new" }));
+$("btn-refresh").addEventListener("click", () => load());
+$("btn-users").addEventListener("click", () => go({ name: "users" }));
+$("bell").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
+$("bell2").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
+
+function render() {
+  const all = [...records.values()];
+  $("role").hidden = !isAdmin();
+  $("role2").hidden = !isApprover();
+  $("btn-refresh").hidden = !seeAll();
+  $("btn-users").hidden = !isAdmin();
+  $("who").hidden = !me; $("btn-logout").hidden = !token;
+  $("who").textContent = me ? (me.name || me.email) : "";
+  const pend = all.filter((r) => stOf(r) === "처리대기" || (stOf(r) === "수선체크대기" && !isHaccp(r))).length;
+  const wait = all.filter((r) => stOf(r) === "확정대기" || (stOf(r) === "수선체크대기" && isHaccp(r))).length;
+  $("bell").hidden = !isAdmin() || !pend;
+  $("bell").replaceChildren(h("span", { class: "pending-dot" }), "관리팀 할 일 " + pend + "건");
+  $("bell2").hidden = !isApprover() || !wait;
+  $("bell2").replaceChildren(h("span", { class: "pending-dot" }), "확정·수선 체크 대기 " + wait + "건");
+  const minec = (isAdmin() ? pend : 0) + (isApprover() ? wait : 0);
+  document.title = (minec ? `(${minec}) ` : "") + "햅썹 시설 보수 접수";
+  const root = $("view");
+  if (view.name === "new") return root.replaceChildren(renderReporterForm(null));
+  if (view.name === "users" && isAdmin()) return root.replaceChildren(renderUsers());
+  if (view.name === "detail") {
+    const rec = records.get(view.id);
+    if (rec) return root.replaceChildren(renderDetail(rec));
+    view = { name: "list" };
+  }
+  root.replaceChildren(seeAll() ? renderList() : renderHome());
+}
+
+/* ---------------- public home: my submissions ---------------- */
+function renderHome() {
+  const el = h("div");
+  el.append(h("section", { class: "hero" },
+    h("h2", {}, "시설에 문제가 생겼나요?"),
+    h("p", {}, "위치·내용·사진을 올리면 해썹생산시설은 확정 담당자 확인 후, 매장은 바로 관리팀으로 전달됩니다. 로그인하지 않아도 접수할 수 있습니다."),
+    h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: () => go({ name: "new" }) }, "+ 새 접수 작성"))));
+  const list = [...records.values()].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  el.append(h("div", { class: "section-title" }, "이 기기에서 접수한 건"));
+  const box = h("div", { class: "list" });
+  if (!loaded && mine.length) box.append(h("div", { class: "empty" }, h("b", {}, "접수 내역을 불러오는 중입니다")));
+  else if (!list.length) box.append(h("div", { class: "empty" }, h("b", {}, "아직 이 기기에서 접수한 건이 없습니다"), h("p", {}, "접수하면 여기에서 진행 상태를 볼 수 있습니다. 관리팀과 확정 담당자는 오른쪽 위에서 구글 계정으로 로그인하세요.")));
+  list.forEach((r) => box.append(card(r)));
+  el.append(box);
+  return el;
+}
+
+/* ---------------- list (registered users) ---------------- */
+function card(r) {
+  const ph = r.r?.photos?.[0];
+  const tags = [];
+  if (isUrgent(r)) tags.push(h("span", { class: "tag red" }, "긴급"));
+  if (r.r?.hygiene === "예") tags.push(h("span", { class: "tag red" }, "위생구역"));
+  if (r.r?.stop === "예") tags.push(h("span", { class: "tag amber" }, "가동중단"));
+  const pending = stOf(r) === "처리대기", waiting = ["확정대기", "수선체크대기"].includes(stOf(r));
+  return h("button", { type: "button", class: "card" + (isUrgent(r) && r.status !== "완료" ? " urgent" : "") + (pending ? " pending" : "") + (waiting ? " waiting" : ""), onclick: () => go({ name: "detail", id: r.id }) },
+    ph ? imgFor(ph, "thumb64", r) : h("div", { class: "thumb64 none" }, "사진 없음"),
+    h("div", { class: "card-main" },
+      h("div", { class: "card-title" }, pending ? h("span", { class: "pending-dot", "aria-label": "처리 대기" }) : waiting ? h("span", { class: "pending-dot amber", "aria-label": LABEL[stOf(r)] }) : null, r.r?.location || "위치 미기재"),
+      h("div", { class: "card-desc" }, firstLine(r.r?.problem) || "내용 없음"),
+      h("div", { class: "card-meta" }, h("span", {}, siteOf(r) + (roomOf(r) ? " · " + roomOf(r) : "")), h("span", {}, "No." + (r.no || "")), h("span", {}, fmt(r.r?.received)), h("span", {}, [r.r?.name, r.r?.team].filter(Boolean).join(" · ")),
+        r.p?.due && r.status !== "완료" ? h("span", {}, "예정 " + r.p.due) : null)),
+    h("div", { class: "card-side" }, pill(r), h("div", { class: "tags" }, tags)));
+}
+
+function renderList() {
+  const all = [...records.values()].filter((r) => siteFilter === "all" || siteOf(r) === siteFilter).sort((a, b) => {
+    const ao = a.status !== "완료", bo = b.status !== "완료";
+    if (ao !== bo) return ao ? -1 : 1;
+    if (ao && isUrgent(a) !== isUrgent(b)) return isUrgent(a) ? -1 : 1;
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  const count = (fn) => all.filter(fn).length;
+  const frag = h("div");
+  frag.append(h("div", { class: "stats" },
+    h("div", { class: "stat" }, h("span", {}, "해썹 확정 대기"), h("b", {}, count((r) => ["확정대기", "반려"].includes(stOf(r))))),
+    h("div", { class: "stat" }, h("span", {}, "처리 대기"), h("b", {}, count((r) => stOf(r) === "처리대기"))),
+    h("div", { class: "stat" }, h("span", {}, "처리중"), h("b", {}, count((r) => stOf(r) === "처리중"))),
+    h("div", { class: "stat" }, h("span", {}, "수선 체크 대기"), h("b", {}, count((r) => stOf(r) === "수선체크대기"))),
+    h("div", { class: "stat" }, h("span", {}, "완료"), h("b", {}, count((r) => stOf(r) === "완료"))),
+    h("div", { class: "stat alert" }, h("span", {}, "긴급 · 미완료"), h("b", {}, count((r) => isUrgent(r) && r.status !== "완료")))));
+
+  const filters = [["open", "진행 중"], ...((isAdmin() || isApprover()) ? [["mine", "내 할 일"]] : []), ["확정대기", "확정 대기"], ["처리대기", "처리 대기"], ["처리중", "처리중"], ["수선체크대기", "수선 체크"], ["완료", "완료"], ["all", "전체"]];
+  const siteSel = h("select", { class: "chipf", "aria-label": "사업장" }, h("option", { value: "all" }, "전체 사업장"), SITES.map((s) => h("option", { value: s, selected: siteFilter === s }, s)));
+  siteSel.addEventListener("change", () => { siteFilter = siteSel.value; render(); });
+  const grpBtn = h("button", { type: "button", class: "chipf", "aria-pressed": groupTeam ? "true" : "false", onclick: () => { groupTeam = !groupTeam; store.set("repair-group-team", groupTeam); render(); } }, "팀별로 보기");
+  const search = h("input", { class: "search", type: "search", placeholder: "위치·내용·접수자 검색", value: query, "aria-label": "검색" });
+  const listBox = h("div", { class: "list" });
+  frag.append(h("div", { class: "toolbar" }, filters.map(([k, l]) => h("button", { type: "button", class: "chipf", "aria-pressed": filter === k ? "true" : "false", onclick: () => { filter = k; render(); } }, l)), siteSel, grpBtn, search), listBox);
+
+  const drawList = () => {
+    const q = query.trim().toLowerCase();
+    const rows = all.filter((r) => {
+      const s = stOf(r);
+      if (filter === "open" && s === "완료") return false;
+      if (filter === "확정대기" && !["확정대기", "반려"].includes(s)) return false;
+      if (["처리대기", "처리중", "수선체크대기", "완료"].includes(filter) && s !== filter) return false;
+      if (filter === "mine" && !isMine(r)) return false;
+      if (q) { const t = [r.no, siteOf(r), r.r?.room, r.r?.location, r.r?.problem, r.r?.name, r.r?.team, r.p?.handler].join(" ").toLowerCase(); if (!t.includes(q)) return false; }
+      return true;
+    });
+    listBox.replaceChildren();
+    if (!loaded) return listBox.append(h("div", { class: "empty" }, h("b", {}, "접수 내역을 불러오는 중입니다")));
+    if (!records.size) return listBox.append(h("div", { class: "empty" }, h("b", {}, "아직 접수된 보수 요청이 없습니다"),
+      h("p", {}, "현장에서 '새 접수'로 위치·내용·사진을 올리면 여기에 모입니다."),
+      h("button", { class: "btn primary", type: "button", onclick: () => go({ name: "new" }) }, "+ 첫 접수 작성")));
+    if (!rows.length) return listBox.append(h("div", { class: "empty" }, h("b", {}, "조건에 맞는 접수가 없습니다")));
+    const order = groupTeam ? [...TEAMS, ""] : [null];
+    order.map((tm) => [tm, tm === null ? rows : rows.filter((r) => (TEAMS.includes(r.r?.team) ? r.r.team : "") === tm)]).filter(([, g]) => g.length).forEach(([tm, g]) => {
+      if (tm !== null) {
+        const w = g.filter((r) => ["확정대기", "처리대기", "수선체크대기"].includes(stOf(r))).length;
+        listBox.append(h("div", { class: "grp" }, tm || "소속팀 미기재", h("small", {}, g.length + "건" + (w ? ` · 대기 ${w}건` : ""))));
+      }
+      g.forEach((r) => listBox.append(card(r)));
+    });
+  };
+  search.addEventListener("input", () => { query = search.value; drawList(); });
+  drawList();
+  return frag;
+}
+
+/* ---------------- detail ---------------- */
+const kv = (pairs) => h("dl", { class: "kv" }, pairs.map(([k, v]) => [h("dt", {}, k), v instanceof Node ? h("dd", {}, v) : h("dd", { class: v ? null : "na" }, v || "—")]));
+const gallery = (refs, rec) => refs?.length ? h("div", { class: "gallery" }, refs.map((ref) =>
+  h("a", { href: `https://drive.google.com/file/d/${encodeURIComponent(ref.g)}/view`, target: "_blank", rel: "noopener", "aria-label": "사진 크게 보기" }, imgFor(ref, null, rec)))) : null;
+
+function renderDetail(rec) {
+  const st = stOf(rec), hc = isHaccp(rec), full = seeAll();
+  const approved = !["확정대기", "반려"].includes(st);
+  const el = h("div");
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+
+  const actions = h("div", { class: "dactions" },
+    h("button", { class: "btn primary", type: "button", onclick: (e) => downloadDocx(rec, e.currentTarget) }, "접수서 Word 저장"));
+  if (isAdmin() || isApprover()) actions.append(h("button", { class: "btn", type: "button", onclick: (e) => saveDocToDrive(rec, e.currentTarget, true) }, rec.doc ? "드라이브 접수서 다시 저장" : "드라이브에 접수서 저장"));
+  if (rec.doc) actions.append(h("a", { class: "btn", href: rec.doc, target: "_blank", rel: "noopener" }, "드라이브 접수서 열기"));
+  if (isAdmin()) {
+    const del = h("button", { class: "btn", type: "button" }, "삭제");
+    let armed = null;
+    del.addEventListener("click", async () => {
+      if (!armed) { del.textContent = "정말 삭제할까요?"; del.classList.add("danger"); armed = setTimeout(() => { del.textContent = "삭제"; del.classList.remove("danger"); armed = null; }, 3000); return; }
+      clearTimeout(armed); del.disabled = true;
+      try { await api("remove", { id: rec.id }); records.delete(rec.id); toast("접수 건을 삭제했습니다. 시트에는 '삭제' 상태로 남습니다."); go({ name: "list" }); }
+      catch (e) { del.disabled = false; toast(e.message); }
+    });
+    actions.append(del);
+  }
+  const tags = [];
+  if (isUrgent(rec)) tags.push(h("span", { class: "tag red" }, "긴급"));
+  if (rec.r?.hygiene === "예") tags.push(h("span", { class: "tag red" }, "위생구역 접촉"));
+  if (rec.r?.stop === "예") tags.push(h("span", { class: "tag amber" }, "가동 중단 필요"));
+  el.append(h("section", { class: "dhead" },
+    h("div", { class: "dhead-top" }, h("h2", {}, rec.r?.location || "위치 미기재"), pill(rec)),
+    h("div", { class: "inline" }, h("span", { class: "dno" }, siteOf(rec) + " · No." + (rec.no || "") + " · 접수 " + fmt(rec.r?.received)), h("div", { class: "tags" }, tags)),
+    actions));
+
+  const stepDefs = [["접수", "현장 담당자", true]];
+  if (hc) stepDefs.push(["해썹 확정", "확정 담당자", approved]);
+  stepDefs.push(["처리방안", "관리팀", ["처리중", "수선체크대기", "완료"].includes(st)], ["처리결과", "관리팀 · 위생", ["수선체크대기", "완료"].includes(st)], ["수선 체크", hc ? "확정 담당자" : "관리팀", st === "완료"]);
+  const nowIdx = stepDefs.findIndex((s) => !s[2]);
+  const nums = "①②③④⑤";
+  el.append(h("div", { class: "steps", style: `grid-template-columns: repeat(${stepDefs.length}, minmax(0, 1fr))` },
+    stepDefs.map(([t, s, d], i) => h("div", { class: "step" + (d ? " done" : i === nowIdx ? " now" : "") }, h("b", {}, nums[i] + " " + t), h("span", {}, s)))));
+
+  el.append(section("① 접수 내용", rec.r, "r", rec, () => kv([
+    ["사업장", siteOf(rec)], ...(hc ? [["해썹 구역(실)", roomOf(rec)]] : []), ["접수자", [rec.r.name, rec.r.team].filter(Boolean).join(" / ")], ["발생 위치", rec.r.location],
+    ["보수 내용", rec.r.problem], ["발견 일시", fmt(rec.r.found)], ["사진", gallery(rec.r.photos, rec) || ""],
+    ["위생구역 접촉", rec.r.hygiene], ["가동 중단 필요", rec.r.stop], ["긴급도 (접수자)", rec.r.urgency],
+  ]), () => renderReporterForm(rec), "", isAdmin() || ownerCanEdit(rec)));
+  if (hc) el.append(approvalSection(rec));
+  const N = hc ? ["③", "④", "⑤"] : ["②", "③", "④"];
+
+  if (!full) {
+    const msg = !approved ? "해썹 확정 후 관리팀으로 넘어갑니다." : st === "처리대기" ? "관리팀이 접수 내용을 확인하고 처리방안을 정하는 중입니다." : st === "처리중" ? "관리팀이 처리 중입니다." : st === "수선체크대기" ? "처리가 끝나 수선 체크를 기다리고 있습니다." : "수선 체크까지 완료되었습니다.";
+    el.append(h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, N[0] + "·" + N[1] + " 처리 내용")), h("div", { class: "sec-b" },
+      h("div", { class: "lockbox" }, h("span", { "aria-hidden": "true" }, "🔒"), h("div", {}, h("b", {}, msg), "처리방안과 처리결과는 관리팀과 확정 담당자만 볼 수 있습니다.")))));
+    el.append(checkSection(rec, N[2]));
+    return el;
+  }
+  el.append(section(N[0] + " 처리방안", rec.p, "p", rec, () => kv([
+    ["처리 담당자 / 업체", rec.p.handler], ["처리 예정일", rec.p.due], ["처리 방안", rec.p.method],
+  ]), () => renderPlanForm(rec), approved ? "관리팀이 담당자·업체와 처리 예정일, 처리 방안을 입력합니다. 입력하면 상태가 '처리중'으로 바뀝니다." : "해썹 확정 담당자가 확정하면 처리방안을 입력할 수 있습니다.",
+    isAdmin() && approved));
+  el.append(section(N[1] + " 처리결과", rec.x, "x", rec, () => kv([
+    ["처리 완료일", rec.x.done], ["처리 결과", rec.x.result], ["완료 사진", gallery(rec.x.photos, rec) || ""],
+    ["위생 담당자 재가동 확인", rec.x.sign || (rec.r?.hygiene === "예" ? "" : "해당 없음")], ["비고", rec.x.memo],
+  ]), () => renderResultForm(rec), rec.p ? "처리가 끝나면 결과와 완료 사진을 입력합니다. 입력하면 수선 체크 단계로 넘어갑니다." : "처리방안을 먼저 입력해 주세요.",
+    isAdmin() && approved && !!rec.p));
+  el.append(checkSection(rec, N[2]));
+  return el;
+}
+
+function section(title, data, key, rec, viewFn, formFn, emptyText, canOpen) {
+  const s = h("section", { class: "sec" + (!data && !canOpen ? " locked" : "") });
+  const who = data && data.by ? [data.by, dstr(data.at)].filter(Boolean).join(" · ") : "";
+  const head = h("div", { class: "sec-h" }, h("h3", {}, title), who ? h("span", { class: "who" }, who) : null);
+  const body = h("div", { class: "sec-b" });
+  if (canOpen) {
+    const btn = h("button", { class: "btn", type: "button", onclick: () => { editing = key; body.replaceChildren(formFn()); btn.hidden = true; } }, data ? "수정" : "입력");
+    head.append(btn);
+  }
+  body.append(data ? viewFn() : h("p", { class: "note" }, emptyText || ""));
+  s.append(head, body);
+  return s;
+}
+
+function decisionBox(label, rejectLabel, okLabel, needMemoMsg, onAct) {
+  const memo = h("textarea", { class: "in", id: "f-dmemo", rows: "2", placeholder: `의견 (${rejectLabel}할 때는 사유 필수)` });
+  const err = h("span", { class: "form-err", role: "alert" });
+  const act = async (ok, btn) => {
+    err.textContent = "";
+    if (!ok && !memo.value.trim()) { err.textContent = needMemoMsg; memo.focus(); return; }
+    btn.disabled = true; const l = btn.textContent; btn.textContent = "저장 중…";
+    try { await onAct(ok, memo.value.trim()); } catch (e) { err.textContent = e.message; } finally { btn.disabled = false; btn.textContent = l; }
+  };
+  return h("div", { class: "approve" }, fld(label, memo, { forId: "f-dmemo" }),
+    h("div", { class: "row" }, err,
+      h("button", { class: "btn", type: "button", onclick: (e) => act(false, e.currentTarget) }, rejectLabel),
+      h("button", { class: "btn primary", type: "button", onclick: (e) => act(true, e.currentTarget) }, okLabel)));
+}
+
+function approvalSection(rec) {
+  const st = stOf(rec), a = rec.a;
+  const s = h("section", { class: "sec" });
+  const who = a ? [a.by, dstr(a.at)].filter(Boolean).join(" · ") : "";
+  s.append(h("div", { class: "sec-h" }, h("h3", {}, "② 해썹 확정"), who ? h("span", { class: "who" }, who) : null));
+  const body = h("div", { class: "sec-b" });
+  s.append(body);
+  if (st === "반려" && a) body.append(kv([["결과", "반려"], ["확정 담당자 의견", a.memo]]), h("p", { class: "note" }, "접수자가 '① 접수 내용'을 수정해 저장하면 다시 확정 요청됩니다."));
+  else if (a && a.ok) body.append(kv([["결과", "확정"], ["확정 담당자 의견", a.memo]]));
+  else if (st === "확정대기" && !isApprover()) body.append(kv([["결과", "확정 대기"], ["확정 담당자 의견", ""]]));
+  if (["확정대기", "반려"].includes(st)) {
+    if (isApprover()) body.append(decisionBox("확정 담당자 의견", "반려", "확정 · 관리팀으로 넘기기", "반려 사유를 입력해 주세요.", async (ok, memo) => {
+      const j = await api("approve", { id: rec.id, ok, memo });
+      records.set(rec.id, j.record);
+      toast(ok ? "확정했습니다. 관리팀으로 넘어갔습니다." : "반려했습니다. 접수자가 수정 후 다시 올립니다.");
+      done(rec.id);
+    }));
+  }
+  return s;
+}
+
+function checkSection(rec, num) {
+  const st = stOf(rec), k = rec.k, hc = isHaccp(rec);
+  const s = h("section", { class: "sec" });
+  const who = k ? [k.by, dstr(k.at)].filter(Boolean).join(" · ") : "";
+  s.append(h("div", { class: "sec-h" }, h("h3", {}, num + " 수선 체크"), who ? h("span", { class: "who" }, who) : null));
+  const body = h("div", { class: "sec-b" });
+  s.append(body);
+  const checker = hc ? "해썹 확정 담당자" : "관리팀";
+  if (st === "완료" && k?.ok) body.append(kv([["결과", "수선 완료 확인"], ["의견", k.memo]]));
+  else if (k && !k.ok) body.append(kv([["결과", "재처리 요청"], ["사유", k.memo]]), h("p", { class: "note" }, "관리팀이 처리결과를 다시 저장하면 수선 체크 대기로 돌아옵니다."));
+  if (st !== "수선체크대기") {
+    if (st !== "완료" && !(k && !k.ok)) body.append(h("p", { class: "note" }, `처리결과가 입력되면 ${checker}가 현장을 확인하고 수선 완료를 체크합니다.`));
+    return s;
+  }
+  if (!canCheck(rec)) { body.append(h("p", { class: "note" }, `${checker}의 수선 체크를 기다리고 있습니다.`)); return s; }
+  body.append(decisionBox("체크 의견", "재처리 요청", "수선 완료 체크", "재처리 요청 사유를 입력해 주세요.", async (ok, memo) => {
+    const j = await api("check", { id: rec.id, ok, memo });
+    records.set(rec.id, j.record);
+    if (ok) {
+      toast("수선 완료를 체크했습니다. 접수서를 드라이브에 저장하는 중입니다…");
+      saveDocToDrive(j.record, null, false).then((url) => { if (url) toast("수선 완료 체크와 드라이브 접수서 저장을 마쳤습니다."); });
+    } else toast("재처리를 요청했습니다. 관리팀이 다시 처리합니다.");
+    done(rec.id);
+  }));
+  return s;
+}
+
+/* ---------------- 사용자 관리 (관리팀) ---------------- */
+const ROLE_OPTS = [["관리팀", "관리팀"], ["확정담당자", "확정 담당자"], ["관리팀,확정담당자", "관리팀 + 확정 담당자"], ["열람", "열람 (보기만)"]];
+const roleSel = (val, id) => h("select", { class: "in", id }, ROLE_OPTS.map(([v, l]) => h("option", { value: v, selected: v === val }, l)));
+function renderUsers() {
+  const el = h("div");
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+  const body = h("div", { class: "sec-b" });
+  el.append(h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "사용자 관리")), body));
+  body.append(h("p", { class: "note", style: "margin-bottom:12px" }, "여기 등록된 구글 계정만 로그인 후 처리할 수 있습니다. 명단에 없는 사람은 접수만 할 수 있습니다. 바꾼 내용은 시트의 '사용자' 탭에도 그대로 저장됩니다."));
+  const list = h("ul", { class: "who-list" }, h("li", {}, h("span", { class: "note" }, "불러오는 중…")));
+  body.append(list);
+  const err = h("p", { class: "form-err", role: "alert" });
+  const draw = (users) => {
+    list.replaceChildren();
+    users.forEach((u, i) => {
+      const sel = roleSel(u.role, "f-role-" + i);
+      sel.addEventListener("change", () => save({ email: u.email, name: u.name, role: sel.value }));
+      const del = h("button", { class: "btn", type: "button" }, "삭제");
+      let armed = null;
+      del.addEventListener("click", () => {
+        if (!armed) { del.textContent = "정말 삭제?"; del.classList.add("danger"); armed = setTimeout(() => { del.textContent = "삭제"; del.classList.remove("danger"); armed = null; }, 3000); return; }
+        clearTimeout(armed); run("removeUser", { email: u.email }, "삭제했습니다.");
+      });
+      list.append(h("li", {}, h("span", {}, h("b", {}, u.name || u.email), h("br"), h("small", { class: "note" }, u.email)), sel, del));
+    });
+    if (!users.length) list.append(h("li", {}, h("span", { class: "note" }, "등록된 사용자가 없습니다.")));
+  };
+  const run = async (action, payload, msg) => {
+    err.textContent = "";
+    try { const j = await api(action, payload); draw(j.users); if (msg) toast(msg); if (payload.email === me?.email) await whoAmI(); }
+    catch (e) { err.textContent = e.message; api("users").then((j) => draw(j.users)).catch(() => {}); }
+  };
+  const save = (u) => run("saveUser", u, "저장했습니다.");
+  api("users").then((j) => draw(j.users)).catch((e) => (err.textContent = e.message));
+  const email = h("input", { class: "in", id: "f-uemail", type: "email", placeholder: "구글 계정 이메일", autocomplete: "off" });
+  const name = h("input", { class: "in", id: "f-uname", placeholder: "이름" });
+  const role = roleSel("확정담당자", "f-urole");
+  const add = h("form", { class: "form", style: "margin-top:16px" },
+    h("div", { class: "grid2" }, fld("이메일", email, { forId: "f-uemail", req: true }), fld("이름", name, { forId: "f-uname" })),
+    fld("역할", role, { forId: "f-urole", req: true, hint: "관리팀: 접수 수정·처리방안·처리결과·매장 수선 체크·삭제·사용자 관리 / 확정 담당자: 해썹 확정·반려·해썹 수선 체크 / 열람: 전체 목록과 처리 내용 보기" }),
+    h("div", { class: "form-actions" }, h("button", { class: "btn primary", type: "submit" }, "사용자 추가")));
+  add.addEventListener("submit", async (e) => { e.preventDefault(); await run("saveUser", { email: email.value.trim(), name: name.value.trim(), role: role.value }, "추가했습니다."); if (!err.textContent) { email.value = ""; name.value = ""; } });
+  body.append(err, h("div", { class: "section-title" }, "사용자 추가"), add);
+  return el;
+}
+
+/* ---------------- forms ---------------- */
+function formShell(fields, onSave, onCancel, saveLabel) {
+  const err = h("span", { class: "form-err", role: "alert" });
+  const save = h("button", { class: "btn primary", type: "submit" }, saveLabel);
+  const f = h("form", { class: "form" }, fields, h("div", { class: "form-actions" }, err, h("button", { class: "btn", type: "button", onclick: onCancel }, "취소"), save));
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault(); err.textContent = "";
+    save.disabled = true; const l = save.textContent; save.textContent = "저장 중…";
+    try { await onSave(err); } catch (x) { err.textContent = x?.message || "저장하지 못했습니다. 다시 시도해 주세요."; }
+    finally { save.disabled = false; save.textContent = l; }
+  });
+  return f;
+}
+const done = (id) => { editing = null; go({ name: "detail", id }); };
+
+function renderReporterForm(rec) {
+  const r = rec?.r || {};
+  const last = store.get("repair-reporter", {});
+  const received = h("input", { class: "in", type: "datetime-local", id: "f-received", value: toInput(r.received) || nowLocal() });
+  const name = h("input", { class: "in", id: "f-name", placeholder: "이름", value: r.name || last.name || "", autocomplete: "name" });
+  const team = h("select", { class: "in", id: "f-team", "aria-label": "소속팀" }, h("option", { value: "" }, "소속팀 선택"), TEAMS.map((t) => h("option", { selected: (r.team || last.team) === t }, t)));
+  const site = h("select", { class: "in", id: "f-site" }, h("option", { value: "" }, "사업장 선택"), SITES.map((s) => h("option", { selected: (r.site || last.site) === s }, s)));
+  const room = h("select", { class: "in", id: "f-room" }, h("option", { value: "" }, "구역(실) 선택"),
+    ROOMS.map(([g, rs]) => h("optgroup", { label: g }, rs.map((x) => h("option", { selected: r.room === x }, x)))));
+  const fRoom = fld("해썹 구역(실)", room, { forId: "f-room", req: true, hint: "해썹생산시설은 정확한 구역을 골라 주세요." });
+  const syncSite = () => {
+    const hc = site.value === HACCP;
+    fRoom.hidden = !hc;
+    location.placeholder = hc ? "설비명·세부 위치 (예: 로스팅 1호기 배기 덕트)" : "매장 내 위치·설비 (예: 바 에스프레소 머신)";
+  };
+  site.addEventListener("change", syncSite);
+  const location = h("input", { class: "in", id: "f-location", placeholder: "라인명·설비명 또는 매장 내 위치 (예: 로스팅 1호기, 바 에스프레소 머신)", value: r.location || "" });
+  syncSite();
+  const problem = h("textarea", { class: "in", id: "f-problem", rows: "4", placeholder: "보수가 필요한 내용과 발견 경위를 간단히 기재" }); problem.value = r.problem || "";
+  const found = h("input", { class: "in", type: "datetime-local", id: "f-found", value: toInput(r.found) });
+  const photos = photoPicker(r.photos || [], rec);
+  const hygiene = seg(["예", "아니오"], r.hygiene, "예");
+  const stop = seg(["예", "아니오"], r.stop, "예");
+  const urgency = seg(["긴급", "일반"], r.urgency, "긴급");
+  const fPhotos = fld("사진 첨부", photos, { req: true, hint: "필수, 최소 1장 (최대 10장)" });
+  const fHyg = fld("햅썹 위생구역 접촉 여부", hygiene, { req: true, hint: "제품 접촉면·배관·천장 누수 등" });
+  const fUrg = fld("긴급도 (접수자 의견)", urgency, { req: true, hint: "※ 최종 판단은 생산부" });
+  [[photos, fPhotos], [hygiene, fHyg], [urgency, fUrg]].forEach(([c, f]) => c.addEventListener("change", () => f.classList.remove("missing")));
+
+  const fields = h("div", { class: "form" },
+    h("div", { class: "grid2" }, fld("접수일시", received, { forId: "f-received" }), fld("발견 일시", found, { forId: "f-found", hint: "실제 현장 문제를 발견한 시점" })),
+    fld("사업장", site, { forId: "f-site", req: true }),
+    fRoom,
+    fld("접수자(보고자)", h("div", { class: "inline" }, name, team), { forId: "f-name", req: true }),
+    fld("발생 위치", location, { forId: "f-location", req: true }),
+    fld("보수 내용", problem, { forId: "f-problem", req: true }),
+    fPhotos,
+    h("div", { class: "grid2" }, fHyg, fld("가동 중단 필요 여부", stop)),
+    fUrg,
+    h("p", { class: "note" }, "※ 위생구역 접촉 여부와 긴급도는 처리 우선순위와 위생 담당자 동시 통보 여부를 결정합니다."));
+
+  const form = formShell(fields, async () => {
+    const miss = [];
+    if (!site.value) miss.push("사업장");
+    if (site.value === HACCP && !room.value) miss.push("해썹 구역(실)");
+    if (!name.value.trim()) miss.push("접수자");
+    if (!location.value.trim()) miss.push("발생 위치");
+    if (!problem.value.trim()) miss.push("보수 내용");
+    if (!photos.count()) { miss.push("사진"); fPhotos.classList.add("missing"); }
+    if (!hygiene.value) { miss.push("위생구역 접촉 여부"); fHyg.classList.add("missing"); }
+    if (!urgency.value) { miss.push("긴급도"); fUrg.classList.add("missing"); }
+    if (miss.length) throw new Error("필수 항목을 입력해 주세요: " + miss.join(", "));
+    const data = { received: received.value, site: site.value, room: site.value === HACCP ? room.value : "", name: name.value.trim(), team: team.value, location: location.value.trim(),
+      problem: problem.value.replace(/\s+$/, ""), found: found.value, hygiene: hygiene.value, stop: stop.value, urgency: urgency.value };
+    store.set("repair-reporter", { name: data.name, team: data.team, site: data.site });
+    const ph = await photos.collect();
+    if (rec) {
+      const j = await api("updateReport", { id: rec.id, key: keyOf(rec.id), data, photos: ph.photos, keep: ph.keep });
+      records.set(rec.id, { ...rec, ...j.record, p: rec.p, x: rec.x, doc: rec.doc });
+      delete photoReq[rec.id];
+      toast(stOf(rec) === "반려" && j.record.status === "확정대기" ? "수정했습니다. 다시 해썹 확정을 요청했습니다." : "접수 내용을 수정했습니다.");
+      done(rec.id);
+    } else {
+      const j = await api("submit", { data, photos: ph.photos });
+      rememberMine(j.id, j.key, j.no);
+      editing = null;
+      await load(true);
+      toast(j.status === "확정대기" ? `접수했습니다 (No.${j.no}). 해썹 확정 담당자가 확정하면 관리팀으로 넘어갑니다.` : `접수했습니다 (No.${j.no}). 관리팀이 처리방안을 입력합니다.`);
+      go(records.has(j.id) ? { name: "detail", id: j.id } : { name: "list" });
+    }
+  }, () => (rec ? done(rec.id) : go({ name: "list" })), rec ? "수정 저장" : "접수하기");
+
+  if (rec) return form;
+  return h("div", {},
+    h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"),
+    h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "① 새 보수 접수")), h("div", { class: "sec-b" }, form)));
+}
+
+function renderPlanForm(rec) {
+  const p = rec.p || {};
+  const handler = h("input", { class: "in", id: "f-handler", value: p.handler || "", placeholder: "예: 설비팀 박OO / ㈜한빛설비" });
+  const due = h("input", { class: "in", type: "date", id: "f-due", value: p.due || "" });
+  const method = h("textarea", { class: "in", id: "f-method", rows: "4", placeholder: "원인 추정, 조치 내용, 필요 부품, 가동 중 작업 가능 여부 등" }); method.value = p.method || "";
+  return formShell(h("div", { class: "form" },
+    h("div", { class: "grid2" }, fld("처리 담당자 / 업체", handler, { forId: "f-handler", req: true }), fld("처리 예정일", due, { forId: "f-due", req: true })),
+    fld("처리 방안", method, { forId: "f-method", req: true })), async () => {
+      const miss = [];
+      if (!handler.value.trim()) miss.push("처리 담당자 / 업체"); if (!due.value) miss.push("처리 예정일"); if (!method.value.trim()) miss.push("처리 방안");
+      if (miss.length) throw new Error("필수 항목을 입력해 주세요: " + miss.join(", "));
+      const j = await api("plan", { id: rec.id, data: { handler: handler.value.trim(), due: due.value, method: method.value.replace(/\s+$/, "") } });
+      records.set(rec.id, j.record);
+      toast("처리방안을 저장했습니다.");
+      done(rec.id);
+    }, () => done(rec.id), "처리방안 저장");
+}
+
+function renderResultForm(rec) {
+  const x = rec.x || {};
+  const doneD = h("input", { class: "in", type: "date", id: "f-done", value: x.done || today() });
+  const result = h("textarea", { class: "in", id: "f-result", rows: "4", placeholder: "조치 내용과 결과, 교체 부품, 재발 방지 조치 등" }); result.value = x.result || "";
+  const photos = photoPicker(x.photos || [], rec);
+  const hyg = rec.r?.hygiene === "예";
+  const sign = h("input", { class: "in", id: "f-sign", value: x.sign || "", placeholder: hyg ? "확인자 이름 (서명 대신)" : "위생구역 접촉 건만 해당" });
+  const memo = h("textarea", { class: "in", id: "f-memo", rows: "2" }); memo.value = x.memo || "";
+  return formShell(h("div", { class: "form" },
+    fld("처리 완료일", doneD, { forId: "f-done", req: true }),
+    fld("처리 결과", result, { forId: "f-result", req: true }),
+    fld("완료 사진", photos),
+    fld("위생 담당자 재가동 확인", sign, { forId: "f-sign", req: hyg, hint: hyg ? "위생구역 접촉 건입니다. 위생 담당자가 재가동을 확인한 뒤 입력하세요." : "위생구역 접촉 건만 해당" }),
+    fld("비고", memo, { forId: "f-memo" })), async () => {
+      const miss = [];
+      if (!doneD.value) miss.push("처리 완료일"); if (!result.value.trim()) miss.push("처리 결과"); if (hyg && !sign.value.trim()) miss.push("위생 담당자 재가동 확인");
+      if (miss.length) throw new Error("필수 항목을 입력해 주세요: " + miss.join(", "));
+      const ph = await photos.collect();
+      const j = await api("result", { id: rec.id, data: { done: doneD.value, result: result.value.replace(/\s+$/, ""), sign: sign.value.trim(), memo: memo.value.replace(/\s+$/, "") }, photos: ph.photos, keep: ph.keep });
+      records.set(rec.id, j.record);
+      delete photoReq[rec.id];
+      toast(j.record.status === "완료" ? "처리결과를 수정했습니다." : `처리결과를 저장했습니다. ${isHaccp(rec) ? "해썹 확정 담당자" : "관리팀"}의 수선 체크를 기다립니다.`);
+      done(rec.id);
+    }, () => done(rec.id), "처리결과 저장");
+}
+
+/* ---------------- Word 접수서 (원본 양식 파일을 그대로 씀) ---------------- */
+/* ---------------- DOCX (the original form file is the template) ---------------- */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function r_(text, o = {}) {
+  let p = "";
+  if (o.b) p += "<w:b/><w:bCs/>";
+  if (o.i) p += "<w:i/><w:iCs/>";
+  if (o.color) p += `<w:color w:val="${o.color}"/>`;
+  if (o.sz) p += `<w:sz w:val="${o.sz}"/><w:szCs w:val="${o.sz}"/>`;
+  return `<w:r>${p ? `<w:rPr>${p}</w:rPr>` : ""}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+}
+const P = (runs = "", ppr = "") => `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ""}${runs}</w:p>`;
+const GRAY = "888888", RED = "C00000";
+const PREX = '<w:tblPrEx><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPrEx>';
+const mar = (tb) => `<w:tcMar><w:top w:w="${tb}" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="${tb}" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>`;
+const secRow = (t) => `<w:tr>${PREX}<w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/>${mar(80)}</w:tcPr>${P(r_(t, { b: true, sz: 21 }))}</w:tc></w:tr>`;
+function row(labelLines, valueXml, center = true) {
+  const va = center ? '<w:vAlign w:val="center"/>' : "";
+  const lab = labelLines.map((l) => P(r_(l, { b: true }), "<w:rPr><w:b/><w:bCs/></w:rPr>")).join("");
+  return `<w:tr>${PREX}<w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="2200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>${mar(100)}${va}</w:tcPr>${lab}</w:tc>` +
+    `<w:tc><w:tcPr><w:tcW w:w="7160" w:type="dxa"/>${mar(100)}${va}</w:tcPr>${valueXml || P()}</w:tc></w:tr>`;
+}
+const textOr = (v, ph) => v ? P(r_(v)) : (ph ? P(r_(ph, { color: GRAY })) : P());
+function multiline(v, ph, minLines) {
+  const sp = '<w:spacing w:after="160"/>';
+  const lines = v ? v.split(/\r?\n/) : [];
+  const ps = lines.map((l) => P(l ? r_(l) : "", sp));
+  if (!v && ph) ps.push(P(r_(ph, { color: GRAY }), sp));
+  while (ps.length < minLines) ps.push(P("", sp));
+  return ps.join("");
+}
+function choice(opts, sel, hot, hint = "") {
+  if (!sel) return P(r_(opts.join(" / "), { color: GRAY }) + hint);
+  return P(opts.map((o, i) => {
+    const on = o === sel;
+    return r_((i ? "   " : "") + (on ? "■ " : "□ "), { color: on ? undefined : GRAY }) + r_(o, on ? { b: true, color: o === hot ? RED : undefined } : { color: GRAY });
+  }).join("") + hint);
+}
+const EMU = 914400;
+function imgRun(rid, id, cx, cy) {
+  return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${id}" name="사진 ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="photo${id}.jpeg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+}
+async function photosXml(refs, media, placeholder) {
+  const list = [];
+  for (const ref of refs || []) { try { list.push({ ref, blob: await photoBlob(ref) }); } catch {} }
+  if (!list.length) return placeholder ? P(r_(placeholder, { color: GRAY })) : P();
+  const perRow = list.length === 1 ? 1 : list.length === 2 ? 2 : 3;
+  const maxW = [0, 4.0, 2.3, 1.5][perRow] * EMU, maxH = [0, 2.8, 1.7, 1.15][perRow] * EMU;
+  const runs = list.map(({ ref, blob }) => {
+    const n = media.length + 1, rid = "rIdPhoto" + n;
+    media.push({ rid, name: `photo${n}.jpeg`, blob });
+    const s = Math.min(maxW / (ref.w || 4), maxH / (ref.h || 3));
+    return imgRun(rid, 100 + n, Math.round((ref.w || 4) * s), Math.round((ref.h || 3) * s));
+  });
+  let out = "";
+  for (let i = 0; i < runs.length; i += perRow) out += P(runs.slice(i, i + perRow).join(r_("  ")), i + perRow < runs.length ? '<w:spacing w:after="80"/>' : "");
+  return out;
+}
+
+async function buildDocx(rec) {
+  await resolveNames([rec.a?.by, rec.k?.by]);
+  const zip = await JSZip.loadAsync(TEMPLATE_B64, { base64: true });
+  const orig = await zip.file("word/document.xml").async("string");
+  const head = orig.slice(0, orig.indexOf("<w:body>") + 8);
+  const sect = orig.slice(orig.lastIndexOf("<w:sectPr"), orig.lastIndexOf("</w:body>"));
+  const media = [];
+  const R = rec.r || {}, Pp = rec.p || {}, X = rec.x || {};
+  const reporter = [R.name, R.team].filter(Boolean).join(" / ");
+
+  let b = "";
+  const siteName = siteOf(rec);
+  b += P(r_(siteName === "해썹생산시설" ? "햅썹 생산시설 보수 접수서" : siteName + " 시설 보수 접수서", { b: true, sz: 36 }), '<w:spacing w:after="100"/><w:jc w:val="center"/>');
+  b += P(r_("해썹생산시설 · 영도 · 온천 · 마린 · 도모헌 시설 보수 요청 양식", { color: "666666" }), '<w:spacing w:after="300"/><w:jc w:val="center"/>');
+  if (rec.no) b += P(r_("접수번호 " + rec.no, { color: "666666", sz: 18 }), '<w:spacing w:after="60"/><w:jc w:val="right"/>');
+  b += '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tblBorders><w:tblCellMar><w:left w:w="10" w:type="dxa"/><w:right w:w="10" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0"/></w:tblPr><w:tblGrid><w:gridCol w:w="2200"/><w:gridCol w:w="7160"/></w:tblGrid>';
+  b += secRow("■ 기본 정보");
+  b += row(["접수일시"], textOr(fmt(R.received), "예: 2026-08-26 14:30"));
+  b += row(["접수자(보고자)"], textOr(reporter, "이름 / 소속팀"));
+  b += row(["사업장"], textOr(siteName));
+  if (siteName === "해썹생산시설") b += row(["해썹 구역(실)"], textOr(roomOf(rec), "구역 미지정"));
+  b += row(["발생 위치"], textOr(R.location, "라인명·설비명 (예: 로스팅 1호기, 포장라인 A)"));
+  b += secRow("■ 보수 내용");
+  b += row(["보수 내용"], multiline(R.problem, "보수가 필요한 내용과 발견 경위를 간단히 기재", 3), false);
+  b += row(["발견 일시"], textOr(fmt(R.found), "실제 현장 문제를 발견한 시점"));
+  b += row(["사진 첨부"], await photosXml(R.photos, media, "필수, 최소 1장 (게시글에 파일 첨부)"));
+  b += secRow("■ 위생 · 안전 판단");
+  b += row(["햅썹 위생구역 접촉", " 여부"], choice(["예", "아니오"], R.hygiene, "예", r_("  (제품 접촉면·배관·천장 누수 등)", { color: GRAY })));
+  b += row(["가동 중단 필요 여부"], choice(["예", "아니오"], R.stop, "예"));
+  b += row(["긴급도 (접수자 의견)"], choice(["긴급", "일반"], R.urgency, "긴급", r_("  ※ 최종 판단은 생산부", { color: GRAY })));
+  if (isHaccp(rec)) {
+    const A = rec.a;
+    const when = A?.at ? dstr(A.at) : "";
+    const txt = A ? [(A.ok ? "확정" : "반려"), nameOf(A.by), when].filter(Boolean).join(" · ") : "";
+    b += row(["해썹 확정"], A ? P(r_(txt, A.ok ? {} : { b: true, color: RED })) : textOr("", stOf(rec) === "확정대기" ? "확정 대기" : ""));
+    b += row(["확정 담당자 의견"], multiline(A?.memo || "", "", 1), false);
+  }
+  b += secRow("■ 처리 트래킹 (관리팀 작성란)");
+  b += row(["처리 담당자 / 업체"], textOr(Pp.handler));
+  b += row(["처리 예정일"], textOr(Pp.due));
+  b += row(["처리 방안"], multiline(Pp.method, "", 2), false);
+  b += row(["처리 상태"], choice(STATUS, docStatus(rec), ""));
+  b += row(["처리 결과"], multiline([X.done ? "완료일: " + X.done : "", X.result || ""].filter(Boolean).join("\n"), "", 2), false);
+  b += row(["완료 사진"], await photosXml(X.photos, media));
+  b += row(["위생 담당자 재가동 ", "확인"], textOr(X.sign, "위생구역 접촉 건만 해당 — 확인자 서명"));
+  const K = rec.k;
+  b += row(["수선 완료 체크"], K ? P(r_([K.ok ? "완료" : "재처리 요청", nameOf(K.by), K.at ? dstr(K.at) : ""].filter(Boolean).join(" · ") + (K.memo ? " — " + K.memo : ""), K.ok ? { b: true } : { b: true, color: RED }))
+    : textOr("", (isHaccp(rec) ? "해썹 확정 담당자" : "관리팀") + " 확인 — 서명"));
+  b += row(["비고"], multiline(X.memo, "", 2), false);
+  b += "</w:tbl>";
+  b += P(r_("※ 위생구역 접촉 여부와 긴급도는 필수 입력 항목입니다. 이 두 항목이 처리 우선순위와 위생 담당자 동시 통보 여부를 결정합니다.", { i: true, color: "555555", sz: 18 }), '<w:spacing w:before="300"/>');
+
+  zip.file("word/document.xml", head + b + sect + "</w:body></w:document>");
+  if (media.length) {
+    const rels = await zip.file("word/_rels/document.xml.rels").async("string");
+    zip.file("word/_rels/document.xml.rels", rels.replace("</Relationships>", media.map((m) => `<Relationship Id="${m.rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.name}"/>`).join("") + "</Relationships>"));
+    let ct = await zip.file("[Content_Types].xml").async("string");
+    if (!/Extension="jpeg"/i.test(ct)) ct = ct.replace('<Default Extension="xml"', '<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');
+    zip.file("[Content_Types].xml", ct);
+    media.forEach((m) => zip.file("word/media/" + m.name, m.blob));
+  }
+  return zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+}
+
+
+
+async function buildFor(rec) {
+  if ([...(rec.r?.photos || []), ...(rec.x?.photos || [])].some((p) => !photoCache[p.g])) { delete photoReq[rec.id]; await photoData(rec); }
+  return buildDocx(rec);
+}
+const safe = (s) => (s || "").replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim().slice(0, 30);
+const docName = (rec) => `시설보수접수서_${safe(siteOf(rec))}_${rec.no || ""}${rec.r?.location ? "_" + safe(rec.r.location) : ""}.docx`;
+async function downloadDocx(rec, btn) {
+  btn.disabled = true; const l = btn.textContent; btn.textContent = "만드는 중…";
+  try {
+    const blob = await buildFor(rec);
+    const a = h("a", { href: URL.createObjectURL(blob), download: docName(rec) });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) { toast("접수서를 만들지 못했습니다. 다시 시도해 주세요."); }
+  finally { btn.disabled = false; btn.textContent = l; }
+}
+async function saveDocToDrive(rec, btn, notify) {
+  if (btn) { btn.disabled = true; btn.textContent = "저장 중…"; }
+  try {
+    const blob = await buildFor(rec);
+    const j = await api("saveDoc", { id: rec.id, b64: await blobToB64(blob) });
+    const cur = records.get(rec.id); if (cur) cur.doc = j.url;
+    if (notify) toast("드라이브에 접수서를 저장했습니다.");
+    if (!editing && view.name === "detail" && view.id === rec.id) render();
+    return j.url;
+  } catch (e) { toast("드라이브 저장에 실패했습니다: " + e.message); if (btn) { btn.disabled = false; btn.textContent = "드라이브에 접수서 저장"; } return null; }
+}
+
+/* ---------------- boot ---------------- */
+window.__app = { records, buildDocx, go, render, state: () => ({ me, token }) };
+if (!CFG.SCRIPT_URL) showBanner("아직 설정이 끝나지 않았습니다. config.js에 구글 시트 연결 주소(SCRIPT_URL)와 로그인 키(CLIENT_ID)를 넣어 주세요.");
+render();
+(async () => { if (token) await whoAmI(); else await load(); })();
+</script>
+<script src="https://accounts.google.com/gsi/client" async onload="initGis()"></script>
+</body>
+</html>
