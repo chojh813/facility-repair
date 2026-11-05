@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>햅썹 시설 보수 접수</title>
+<title>모모스 시설 보수 접수</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
@@ -250,7 +250,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 <body>
 <header class="top gutter">
   <div class="wrap">
-    <div class="brand"><div class="brand-mark">보수</div><div><b>시설 보수 접수</b><small>해썹생산시설 · 영도 · 온천 · 마린 · 도모헌</small></div></div>
+    <div class="brand"><div class="brand-mark">보수</div><div><b>모모스 시설 보수 접수</b><small>해썹생산시설 · 영도 · 온천 · 마린 · 도모헌</small></div></div>
     <span class="role" id="role" hidden>관리팀</span>
     <span class="role" id="role2" hidden>해썹 확정</span>
     <button class="btn" id="btn-refresh" type="button" hidden>새로고침</button>
@@ -536,7 +536,7 @@ function render() {
   $("bell2").hidden = !isApprover() || !wait;
   $("bell2").replaceChildren(h("span", { class: "pending-dot" }), "확정·수선 체크 대기 " + wait + "건");
   const minec = (isAdmin() ? pend : 0) + (isApprover() ? wait : 0);
-  document.title = (minec ? `(${minec}) ` : "") + "햅썹 시설 보수 접수";
+  document.title = (minec ? `(${minec}) ` : "") + "모모스 시설 보수 접수";
   const root = $("view");
   if (view.name === "new") return root.replaceChildren(renderReporterForm(null));
   if (view.name === "users" && isAdmin()) return root.replaceChildren(renderUsers());
