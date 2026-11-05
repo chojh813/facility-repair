@@ -703,7 +703,7 @@ function renderDetail(rec) {
   ]), () => renderPlanForm(rec), approved ? "관리팀이 담당자·업체와 처리 예정일, 처리 방안을 입력합니다. 입력하면 상태가 '처리중'으로 바뀝니다." : "해썹 확정 담당자가 확정하면 처리방안을 입력할 수 있습니다.",
     isAdmin() && approved));
   el.append(section(N[1] + " 처리결과", rec.x, "x", rec, () => kv([
-    ["처리 완료일", rec.x.done], ["처리 결과", rec.x.result], ["완료 사진", gallery(rec.x.photos, rec) || ""],
+    ["처리 완료일", rec.x.done], ["유상/무상", rec.x.paid], ["처리 결과", rec.x.result], ["완료 사진", gallery(rec.x.photos, rec) || ""],
     ["위생 담당자 재가동 확인", rec.x.sign || (rec.r?.hygiene === "예" ? "" : "해당 없음")], ["비고", rec.x.memo],
   ]), () => renderResultForm(rec), rec.p ? "처리가 끝나면 결과와 완료 사진을 입력합니다. 입력하면 수선 체크 단계로 넘어갑니다." : "처리방안을 먼저 입력해 주세요.",
     isAdmin() && approved && !!rec.p));
@@ -849,7 +849,7 @@ function exportRows(list) {
       "해썹 확정": !isHaccp(r) ? "해당 없음" : A ? (A.ok ? "확정" : "반려") : stOf(r) === "확정대기" ? "대기" : "",
       "확정자": A?.by || "", "확정 일시": A?.at || "", "확정 담당자 의견": A?.memo || "",
       "처리 담당자/업체": Pp.handler || "", "처리 예정일": Pp.due || "", "처리 방안": Pp.method || "", "처리방안 입력자": Pp.by || "",
-      "처리 완료일": X.done || "", "처리 결과": X.result || "", "완료 사진(장)": (X.photos || []).length, "위생 재가동 확인": X.sign || "", "비고": X.memo || "", "결과 입력자": X.by || "",
+      "처리 완료일": X.done || "", "유상/무상": X.paid || "", "처리 결과": X.result || "", "완료 사진(장)": (X.photos || []).length, "위생 재가동 확인": X.sign || "", "비고": X.memo || "", "결과 입력자": X.by || "",
       "수선 완료 체크": K ? (K.ok ? "완료" : "재처리 요청") : "", "체크자": K?.by || "", "체크 일시": K?.at || "", "체크 의견": K?.memo || "",
       "처리일수(접수→처리완료)": X.done ? daysBetween(R.received, X.done) : "",
       "사진 링크": photoLinks(R.photos), "완료 사진 링크": photoLinks(X.photos), "접수서(Word)": r.doc || "",
@@ -878,6 +878,7 @@ function summaryAoa(list, from, to, siteLabel) {
   group("소속팀별", (r) => r.r?.team || "", [...TEAMS, ""]);
   const hc = list.filter(isHaccp);
   if (hc.length) { aoa.push(["※ 아래는 해썹생산시설 건만"]); const all = list; list = hc; group("해썹 구역별", roomOf, [...ROOMS.flatMap(([, rs]) => rs), ""]); list = all; }
+  { const all = list; list = list.filter((r) => r.x); if (list.length) group("유상/무상별 (처리결과 입력된 건)", (r) => r.x.paid || "", ["유상", "무상", ""]); list = all; }
   group("월별 (접수월)", (r) => dayOf(r.r?.received).slice(0, 7));
   return aoa;
 }
@@ -1052,22 +1053,25 @@ function renderPlanForm(rec) {
 function renderResultForm(rec) {
   const x = rec.x || {};
   const doneD = h("input", { class: "in", type: "date", id: "f-done", value: x.done || today() });
+  const paid = seg(["유상", "무상"], x.paid);
+  const fPaid = fld("유상/무상", paid, { req: true, hint: "업체 비용이 드는 수리면 유상" });
+  paid.addEventListener("change", () => fPaid.classList.remove("missing"));
   const result = h("textarea", { class: "in", id: "f-result", rows: "4", placeholder: "조치 내용과 결과, 교체 부품, 재발 방지 조치 등" }); result.value = x.result || "";
   const photos = photoPicker(x.photos || [], rec);
   const hyg = rec.r?.hygiene === "예";
   const sign = h("input", { class: "in", id: "f-sign", value: x.sign || "", placeholder: hyg ? "확인자 이름 (서명 대신)" : "위생구역 접촉 건만 해당" });
   const memo = h("textarea", { class: "in", id: "f-memo", rows: "2" }); memo.value = x.memo || "";
   return formShell(h("div", { class: "form" },
-    fld("처리 완료일", doneD, { forId: "f-done", req: true }),
+    h("div", { class: "grid2" }, fld("처리 완료일", doneD, { forId: "f-done", req: true }), fPaid),
     fld("처리 결과", result, { forId: "f-result", req: true }),
     fld("완료 사진", photos),
     fld("위생 담당자 재가동 확인", sign, { forId: "f-sign", req: hyg, hint: hyg ? "위생구역 접촉 건입니다. 위생 담당자가 재가동을 확인한 뒤 입력하세요." : "위생구역 접촉 건만 해당" }),
     fld("비고", memo, { forId: "f-memo" })), async () => {
       const miss = [];
-      if (!doneD.value) miss.push("처리 완료일"); if (!result.value.trim()) miss.push("처리 결과"); if (hyg && !sign.value.trim()) miss.push("위생 담당자 재가동 확인");
+      if (!doneD.value) miss.push("처리 완료일"); if (!paid.value) { miss.push("유상/무상"); fPaid.classList.add("missing"); } if (!result.value.trim()) miss.push("처리 결과"); if (hyg && !sign.value.trim()) miss.push("위생 담당자 재가동 확인");
       if (miss.length) throw new Error("필수 항목을 입력해 주세요: " + miss.join(", "));
       const ph = await photos.collect();
-      const j = await api("result", { id: rec.id, data: { done: doneD.value, result: result.value.replace(/\s+$/, ""), sign: sign.value.trim(), memo: memo.value.replace(/\s+$/, "") }, photos: ph.photos, keep: ph.keep });
+      const j = await api("result", { id: rec.id, data: { done: doneD.value, paid: paid.value, result: result.value.replace(/\s+$/, ""), sign: sign.value.trim(), memo: memo.value.replace(/\s+$/, "") }, photos: ph.photos, keep: ph.keep });
       records.set(rec.id, j.record);
       delete photoReq[rec.id];
       toast(j.record.status === "완료" ? "처리결과를 수정했습니다." : `처리결과를 저장했습니다. ${isHaccp(rec) ? "해썹 확정 담당자" : "관리팀"}의 수선 체크를 기다립니다.`);
@@ -1176,7 +1180,7 @@ async function buildDocx(rec) {
   b += row(["처리 예정일"], textOr(Pp.due));
   b += row(["처리 방안"], multiline(Pp.method, "", 2), false);
   b += row(["처리 상태"], choice(STATUS, docStatus(rec), ""));
-  b += row(["처리 결과"], multiline([X.done ? "완료일: " + X.done : "", X.result || ""].filter(Boolean).join("\n"), "", 2), false);
+  b += row(["처리 결과"], multiline([X.done ? "완료일: " + X.done + (X.paid ? " · " + X.paid : "") : "", X.result || ""].filter(Boolean).join("\n"), "", 2), false);
   b += row(["완료 사진"], await photosXml(X.photos, media));
   b += row(["위생 담당자 재가동 ", "확인"], textOr(X.sign, "위생구역 접촉 건만 해당 — 확인자 서명"));
   const K = rec.k;
