@@ -235,6 +235,11 @@ img { max-width: 100%; }
 .doclink { font-size: 13px; color: var(--accent); }
 .spin { opacity: .6; pointer-events: none; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+button.stat { font: inherit; color: inherit; text-align: left; cursor: pointer; display: block; width: 100%; }
+button.stat:hover { border-color: var(--accent); }
+button.stat:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.stat.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+button.stat.alert.on { border-color: var(--alert); background: var(--alert-soft); box-shadow: inset 0 0 0 1px var(--alert); }
 .ulist { display: grid; gap: 10px; }
 .fld { align-content: start; }
 .ucard { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
@@ -603,15 +608,19 @@ function renderList() {
   });
   const count = (fn) => all.filter(fn).length;
   const frag = h("div");
+  // 숫자 카드를 누르면 해당 건만 아래 목록에 보여 줍니다 (한 번 더 누르면 '진행 중'으로 돌아감)
+  const tile = (key, label, n, cls) => h("button", { type: "button", class: "stat" + (cls ? " " + cls : "") + (filter === key ? " on" : ""), "aria-pressed": filter === key ? "true" : "false",
+    title: `${label} 건만 보기`, onclick: () => { filter = filter === key ? "open" : key; render(); requestAnimationFrame(() => document.querySelector(".toolbar")?.scrollIntoView({ behavior: "smooth", block: "start" })); } },
+    h("span", {}, label), h("b", {}, n));
   frag.append(h("div", { class: "stats" },
-    h("div", { class: "stat" }, h("span", {}, "해썹 확정 대기"), h("b", {}, count((r) => ["확정대기", "반려"].includes(stOf(r))))),
-    h("div", { class: "stat" }, h("span", {}, "처리 대기"), h("b", {}, count((r) => stOf(r) === "처리대기"))),
-    h("div", { class: "stat" }, h("span", {}, "처리중"), h("b", {}, count((r) => stOf(r) === "처리중"))),
-    h("div", { class: "stat" }, h("span", {}, "수선 체크 대기"), h("b", {}, count((r) => stOf(r) === "수선체크대기"))),
-    h("div", { class: "stat" }, h("span", {}, "완료"), h("b", {}, count((r) => stOf(r) === "완료"))),
-    h("div", { class: "stat alert" }, h("span", {}, "긴급 · 미완료"), h("b", {}, count((r) => isUrgent(r) && r.status !== "완료")))));
+    tile("확정대기", "해썹 확정 대기", count((r) => ["확정대기", "반려"].includes(stOf(r)))),
+    tile("처리대기", "처리 대기", count((r) => stOf(r) === "처리대기")),
+    tile("처리중", "처리중", count((r) => stOf(r) === "처리중")),
+    tile("수선체크대기", "수선 체크 대기", count((r) => stOf(r) === "수선체크대기")),
+    tile("완료", "완료", count((r) => stOf(r) === "완료")),
+    tile("urgent", "긴급 · 미완료", count((r) => isUrgent(r) && r.status !== "완료"), "alert")));
 
-  const filters = [["open", "진행 중"], ...((isAdmin() || isApprover()) ? [["mine", "내 할 일"]] : []), ["확정대기", "확정 대기"], ["처리대기", "처리 대기"], ["처리중", "처리중"], ["수선체크대기", "수선 체크"], ["완료", "완료"], ["all", "전체"]];
+  const filters = [["open", "진행 중"], ...((isAdmin() || isApprover()) ? [["mine", "내 할 일"]] : []), ["확정대기", "확정 대기"], ["처리대기", "처리 대기"], ["처리중", "처리중"], ["수선체크대기", "수선 체크"], ["완료", "완료"], ["all", "전체"], ...(filter === "urgent" ? [["urgent", "긴급 · 미완료"]] : [])];
   const siteSel = h("select", { class: "chipf", "aria-label": "사업장", "data-nodirty": "" }, h("option", { value: "all" }, "전체 사업장"), SITES.map((s) => h("option", { value: s, selected: siteFilter === s }, s)));
   siteSel.addEventListener("change", () => { siteFilter = siteSel.value; render(); });
   const grpBtn = h("button", { type: "button", class: "chipf", "aria-pressed": groupTeam ? "true" : "false", onclick: () => { groupTeam = !groupTeam; store.set("repair-group-team", groupTeam); render(); } }, "팀별로 보기");
@@ -627,6 +636,7 @@ function renderList() {
       if (filter === "확정대기" && !["확정대기", "반려"].includes(s)) return false;
       if (["처리대기", "처리중", "수선체크대기", "완료"].includes(filter) && s !== filter) return false;
       if (filter === "mine" && !isMine(r)) return false;
+      if (filter === "urgent" && !(isUrgent(r) && s !== "완료")) return false;
       if (q) { const t = [r.no, siteOf(r), r.r?.room, r.r?.location, r.r?.problem, r.r?.name, r.r?.team, r.p?.handler].join(" ").toLowerCase(); if (!t.includes(q)) return false; }
       return true;
     });
