@@ -322,7 +322,9 @@ async function resolveNames() {}
 let toastT;
 function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), 3800); }
 function showBanner(t) { const b = $("banner"); b.textContent = t; b.hidden = !t; }
-const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }, del(k) { try { localStorage.removeItem(k); } catch {} } };
+/* 작성 중인 칸이 있으면 자동 새로고침이 화면을 다시 그리지 않게 합니다 */
+const isDirty = () => !!document.querySelector("#view [data-dirty]");
 
 /* ---------------- server ---------------- */
 let token = null;
@@ -363,12 +365,13 @@ async function load(quiet) {
       if (mine.length) { const j = await api("mine", { items: mine.map(({ id, key }) => ({ id, key })) }); j.records.forEach((r) => records.set(r.id, r)); }
     }
     loaded = true;
-    if (!editing) render();
-  } catch (e) { if (e.code === "config") showBanner(e.message); else if (!quiet) toast(e.message); loaded = true; if (!editing) render(); }
+    if (!editing && !isDirty()) render();
+    else if (!quiet) toast("작성 중인 내용이 있어 화면은 그대로 두었습니다. 저장하거나 목록으로 나가면 새 내용이 보입니다.");
+  } catch (e) { if (e.code === "config") showBanner(e.message); else if (!quiet) toast(e.message); loaded = true; if (!editing && !isDirty()) render(); }
   finally { loading = false; $("btn-refresh").classList.remove("spin"); }
 }
-setInterval(() => { if (document.visibilityState === "visible" && !editing) load(true); }, 60000);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !editing && loaded) load(true); });
+setInterval(() => { if (document.visibilityState === "visible" && !editing && !isDirty()) load(true); }, 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !editing && !isDirty() && loaded) load(true); });
 
 /* ---------------- Google login ---------------- */
 function initGis() {
@@ -517,6 +520,8 @@ let editing = null;
 let filter = "open", query = "", siteFilter = "all";
 let groupTeam = store.get("repair-group-team", true);
 
+$("view").addEventListener("input", (e) => { if (e.target.matches("input, textarea") && !e.target.hasAttribute("data-nodirty")) e.target.dataset.dirty = "1"; });
+$("view").addEventListener("change", (e) => { if (e.target.matches("select, input[type=date], input[type=datetime-local], input[type=checkbox]") && !e.target.hasAttribute("data-nodirty")) e.target.dataset.dirty = "1"; });
 function go(v) { view = v; editing = v.name === "new" ? "new" : null; render(); window.scrollTo(0, 0); }
 $("btn-new").addEventListener("click", () => go({ name: "new" }));
 $("btn-refresh").addEventListener("click", () => load());
@@ -607,10 +612,10 @@ function renderList() {
     h("div", { class: "stat alert" }, h("span", {}, "긴급 · 미완료"), h("b", {}, count((r) => isUrgent(r) && r.status !== "완료")))));
 
   const filters = [["open", "진행 중"], ...((isAdmin() || isApprover()) ? [["mine", "내 할 일"]] : []), ["확정대기", "확정 대기"], ["처리대기", "처리 대기"], ["처리중", "처리중"], ["수선체크대기", "수선 체크"], ["완료", "완료"], ["all", "전체"]];
-  const siteSel = h("select", { class: "chipf", "aria-label": "사업장" }, h("option", { value: "all" }, "전체 사업장"), SITES.map((s) => h("option", { value: s, selected: siteFilter === s }, s)));
+  const siteSel = h("select", { class: "chipf", "aria-label": "사업장", "data-nodirty": "" }, h("option", { value: "all" }, "전체 사업장"), SITES.map((s) => h("option", { value: s, selected: siteFilter === s }, s)));
   siteSel.addEventListener("change", () => { siteFilter = siteSel.value; render(); });
   const grpBtn = h("button", { type: "button", class: "chipf", "aria-pressed": groupTeam ? "true" : "false", onclick: () => { groupTeam = !groupTeam; store.set("repair-group-team", groupTeam); render(); } }, "팀별로 보기");
-  const search = h("input", { class: "search", type: "search", placeholder: "위치·내용·접수자 검색", value: query, "aria-label": "검색" });
+  const search = h("input", { class: "search", type: "search", placeholder: "위치·내용·접수자 검색", value: query, "aria-label": "검색", "data-nodirty": "" });
   const listBox = h("div", { class: "list" });
   frag.append(h("div", { class: "toolbar" }, filters.map(([k, l]) => h("button", { type: "button", class: "chipf", "aria-pressed": filter === k ? "true" : "false", onclick: () => { filter = k; render(); } }, l)), siteSel, grpBtn, search), listBox);
 
@@ -730,14 +735,17 @@ function section(title, data, key, rec, viewFn, formFn, emptyText, canOpen) {
   return s;
 }
 
-function decisionBox(label, rejectLabel, okLabel, needMemoMsg, onAct) {
+function decisionBox(label, rejectLabel, okLabel, needMemoMsg, onAct, draftKey) {
   const memo = h("textarea", { class: "in", id: "f-dmemo", rows: "2", placeholder: `의견 (${rejectLabel}할 때는 사유 필수)` });
+  // 쓰던 의견은 이 기기에 임시 저장해 두었다가 다시 열면 채워 줍니다
+  const dk = draftKey ? "repair-draft-" + draftKey : null;
+  if (dk) { memo.value = store.get(dk, ""); if (memo.value) memo.dataset.dirty = "1"; memo.addEventListener("input", () => (memo.value.trim() ? store.set(dk, memo.value) : store.del(dk))); }
   const err = h("span", { class: "form-err", role: "alert" });
   const act = async (ok, btn) => {
     err.textContent = "";
     if (!ok && !memo.value.trim()) { err.textContent = needMemoMsg; memo.focus(); return; }
     btn.disabled = true; const l = btn.textContent; btn.textContent = "저장 중…";
-    try { await onAct(ok, memo.value.trim()); } catch (e) { err.textContent = e.message; } finally { btn.disabled = false; btn.textContent = l; }
+    try { delete memo.dataset.dirty; await onAct(ok, memo.value.trim()); if (dk) store.del(dk); } catch (e) { memo.dataset.dirty = "1"; err.textContent = e.message; } finally { btn.disabled = false; btn.textContent = l; }
   };
   return h("div", { class: "approve" }, fld(label, memo, { forId: "f-dmemo" }),
     h("div", { class: "row" }, err,
@@ -761,7 +769,7 @@ function approvalSection(rec) {
       records.set(rec.id, j.record);
       toast(ok ? "확정했습니다. 관리팀으로 넘어갔습니다." : "반려했습니다. 접수자가 수정 후 다시 올립니다.");
       done(rec.id);
-    }));
+    }, rec.id + "-a"));
   }
   return s;
 }
@@ -796,7 +804,7 @@ function checkSection(rec, num) {
       saveDocToDrive(j.record, null, false).then((url) => { if (url) toast("수선 완료 체크와 드라이브 접수서 저장을 마쳤습니다."); });
     } else toast("재처리를 요청했습니다. 관리팀이 다시 처리합니다.");
     done(rec.id);
-  }));
+  }, rec.id + "-k"));
   return s;
 }
 
@@ -1259,7 +1267,7 @@ async function saveDocToDrive(rec, btn, notify) {
     const j = await api("saveDoc", { id: rec.id, b64: await blobToB64(blob) });
     const cur = records.get(rec.id); if (cur) cur.doc = j.url;
     if (notify) toast("드라이브에 접수서를 저장했습니다.");
-    if (!editing && view.name === "detail" && view.id === rec.id) render();
+    if (!editing && !isDirty() && view.name === "detail" && view.id === rec.id) render();
     return j.url;
   } catch (e) { toast("드라이브 저장에 실패했습니다: " + e.message); if (btn) { btn.disabled = false; btn.textContent = "드라이브에 접수서 저장"; } return null; }
 }
