@@ -527,13 +527,47 @@ let groupTeam = store.get("repair-group-team", true);
 
 $("view").addEventListener("input", (e) => { if (e.target.matches("input, textarea") && !e.target.hasAttribute("data-nodirty")) e.target.dataset.dirty = "1"; });
 $("view").addEventListener("change", (e) => { if (e.target.matches("select, input[type=date], input[type=datetime-local], input[type=checkbox]") && !e.target.hasAttribute("data-nodirty")) e.target.dataset.dirty = "1"; });
-function go(v) { view = v; editing = v.name === "new" ? "new" : null; render(); window.scrollTo(0, 0); }
+/* 화면 이동을 브라우저 방문 기록에 남겨서, 뒤로가기를 누르면 앱 안의 이전 화면으로 돌아가게 합니다 */
+const hashOf = (v) => (v.name === "detail" ? "#r-" + v.id : v.name === "list" ? "" : "#" + v.name);
+const urlOf = (v) => location.pathname + location.search + hashOf(v);
+function go(v, opt = {}) {
+  const prev = view.name;
+  view = v; editing = v.name === "new" ? "new" : null;
+  try { if (opt.replace) history.replaceState({ v, prev: history.state?.prev }, "", urlOf(v)); else if (!opt.fromPop) { history.pushState({ v, prev }, "", urlOf(v)); navDepth++; } } catch {}
+  render(); window.scrollTo(0, 0);
+}
+function viewFromHash() {
+  const hsh = location.hash;
+  const m = /^#r-([A-Za-z0-9]+)$/.exec(hsh);
+  if (m) return records.has(m[1]) ? { name: "detail", id: m[1] } : { name: "list" };
+  if (hsh === "#new") return { name: "new" };
+  if (hsh === "#users" && isAdmin()) return { name: "users" };
+  if (hsh === "#export" && seeAll()) return { name: "export" };
+  return { name: "list" };
+}
+let backArmed = 0, navDepth = 0;
+// '← 목록' 버튼: 앱 안에서 들어온 화면이면 뒤로가기와 똑같이 동작
+function backToList() { if (navDepth > 0 && history.state?.prev === "list") history.back(); else go({ name: "list" }); }
+window.addEventListener("popstate", (e) => {
+  const v = e.state?.v || viewFromHash();
+  // 작성 중이면 바로 나가지 않고 한 번 더 누르게 합니다
+  if ((editing || isDirty()) && Date.now() - backArmed > 4000) {
+    backArmed = Date.now();
+    try { history.pushState({ v: view }, "", urlOf(view)); } catch {}
+    toast("작성 중인 내용이 있습니다. 뒤로가기를 한 번 더 누르면 작성 내용 없이 이전 화면으로 갑니다.");
+    return;
+  }
+  backArmed = 0; navDepth = Math.max(0, navDepth - 1);
+  go(v.name === "detail" && !records.has(v.id) ? { name: "list" } : v, { fromPop: true });
+});
+try { if (!history.state) history.replaceState({ v: { name: "list" } }, "", location.hash.startsWith("#r-") ? location.href : urlOf({ name: "list" })); } catch {}
 $("btn-new").addEventListener("click", () => go({ name: "new" }));
 $("btn-refresh").addEventListener("click", () => load());
 $("btn-users").addEventListener("click", () => go({ name: "users" }));
 $("btn-export").addEventListener("click", () => go({ name: "export" }));
-$("bell").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
-$("bell2").addEventListener("click", () => { filter = "mine"; go({ name: "list" }); });
+const showMine = () => { filter = "mine"; if (view.name === "list") render(); else go({ name: "list" }); };
+$("bell").addEventListener("click", showMine);
+$("bell2").addEventListener("click", showMine);
 
 function render() {
   const all = [...records.values()];
@@ -669,7 +703,7 @@ function renderDetail(rec) {
   const st = stOf(rec), hc = isHaccp(rec), full = seeAll();
   const approved = !["확정대기", "반려"].includes(st);
   const el = h("div");
-  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: backToList }, "← 목록"));
 
   const actions = h("div", { class: "dactions" },
     h("button", { class: "btn primary", type: "button", onclick: (e) => downloadDocx(rec, e.currentTarget) }, "접수서 Word 저장"));
@@ -681,7 +715,7 @@ function renderDetail(rec) {
     del.addEventListener("click", async () => {
       if (!armed) { del.textContent = "정말 삭제할까요?"; del.classList.add("danger"); armed = setTimeout(() => { del.textContent = "삭제"; del.classList.remove("danger"); armed = null; }, 3000); return; }
       clearTimeout(armed); del.disabled = true;
-      try { await api("remove", { id: rec.id }); records.delete(rec.id); toast("접수 건을 삭제했습니다. 시트에는 '삭제' 상태로 남습니다."); go({ name: "list" }); }
+      try { await api("remove", { id: rec.id }); records.delete(rec.id); toast("접수 건을 삭제했습니다. 시트에는 '삭제' 상태로 남습니다."); backToList(); }
       catch (e) { del.disabled = false; toast(e.message); }
     });
     actions.append(del);
@@ -830,7 +864,7 @@ function userFields(u, idp) {
 }
 function renderUsers() {
   const el = h("div");
-  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: backToList }, "← 목록"));
   const body = h("div", { class: "sec-b" });
   el.append(h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "사용자 관리")), body));
   body.append(h("p", { class: "note", style: "margin-bottom:12px" }, "여기 등록된 구글 계정만 로그인 후 처리할 수 있습니다. 명단에 없는 사람은 접수만 할 수 있습니다. 알림 메일은 회사 메일 등 다른 주소로 받을 수 있고, '알림만'은 로그인 없이 메일만 받는 주소입니다."));
@@ -928,7 +962,7 @@ function summaryAoa(list, from, to, siteLabel) {
 }
 function renderExport() {
   const el = h("div");
-  el.append(h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"));
+  el.append(h("button", { class: "btn ghost back", type: "button", onclick: backToList }, "← 목록"));
   const body = h("div", { class: "sec-b" });
   el.append(h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "엑셀 다운로드")), body));
   const now = new Date();
@@ -996,7 +1030,7 @@ function formShell(fields, onSave, onCancel, saveLabel) {
   });
   return f;
 }
-const done = (id) => { editing = null; go({ name: "detail", id }); };
+const done = (id) => { editing = null; go({ name: "detail", id }, { replace: view.name === "detail" || view.name === "new" }); };
 
 function renderReporterForm(rec) {
   const r = rec?.r || {};
@@ -1072,13 +1106,13 @@ function renderReporterForm(rec) {
       editing = null;
       await load(true);
       toast(j.status === "확정대기" ? `접수했습니다 (No.${j.no}). 해썹 확정 담당자가 확정하면 관리팀으로 넘어갑니다.` : `접수했습니다 (No.${j.no}). 관리팀이 처리방안을 입력합니다.`);
-      go(records.has(j.id) ? { name: "detail", id: j.id } : { name: "list" });
+      go(records.has(j.id) ? { name: "detail", id: j.id } : { name: "list" }, { replace: true });
     }
-  }, () => (rec ? done(rec.id) : go({ name: "list" })), rec ? "수정 저장" : "접수하기");
+  }, () => { if (rec) return done(rec.id); editing = null; document.querySelectorAll("#view [data-dirty]").forEach((x) => delete x.dataset.dirty); backToList(); }, rec ? "수정 저장" : "접수하기");
 
   if (rec) return form;
   return h("div", {},
-    h("button", { class: "btn ghost back", type: "button", onclick: () => go({ name: "list" }) }, "← 목록"),
+    h("button", { class: "btn ghost back", type: "button", onclick: backToList }, "← 목록"),
     h("section", { class: "sec" }, h("div", { class: "sec-h" }, h("h3", {}, "① 새 보수 접수")), h("div", { class: "sec-b" }, form)));
 }
 
@@ -1286,7 +1320,7 @@ async function saveDocToDrive(rec, btn, notify) {
 window.__app = { records, buildDocx, go, render, state: () => ({ me, token }) };
 if (!CFG.SCRIPT_URL) showBanner("아직 설정이 끝나지 않았습니다. config.js에 구글 시트 연결 주소(SCRIPT_URL)와 로그인 키(CLIENT_ID)를 넣어 주세요.");
 render();
-const openFromHash = () => { const m = /^#r-([A-Za-z0-9]+)$/.exec(location.hash); if (m && records.has(m[1])) { history.replaceState(null, "", location.pathname); go({ name: "detail", id: m[1] }); } };
+const openFromHash = () => { const m = /^#r-([A-Za-z0-9]+)$/.exec(location.hash); if (m && records.has(m[1]) && !(view.name === "detail" && view.id === m[1])) { try { history.replaceState({ v: { name: "list" } }, "", urlOf({ name: "list" })); } catch {} go({ name: "detail", id: m[1] }); } };
 (async () => { if (token) await whoAmI(); else await load(); openFromHash(); })();
 </script>
 <script src="https://accounts.google.com/gsi/client" async onload="initGis()"></script>
