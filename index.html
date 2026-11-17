@@ -260,7 +260,7 @@ button.stat.alert.on { border-color: var(--alert); background: var(--alert-soft)
 <body>
 <header class="top gutter">
   <div class="wrap">
-    <div class="brand"><div class="brand-mark">보수</div><div><b>모모스 시설 보수 접수</b><small>해썹생산시설 · 영도 · 온천 · 마린 · 도모헌</small></div></div>
+    <div class="brand"><div class="brand-mark">보수</div><div><b>모모스 시설 보수 접수</b><small>해썹생산시설 · 영도 · 온천 · 마린 · 도모헌 · 중앙창고</small></div></div>
     <span class="role" id="role" hidden>관리팀</span>
     <span class="role" id="role2" hidden>해썹 확정</span>
     <button class="btn" id="btn-refresh" type="button" hidden>새로고침</button>
@@ -287,8 +287,8 @@ button.stat.alert.on { border-color: var(--alert); background: var(--alert-soft)
 <script>
 const CFG = window.APP_CONFIG || {};
 const TEMPLATE_B64 = window.TEMPLATE_B64 || "";
-const TEAMS = ["로스팅팀", "로스팅팀(생두소분)", "제품생산(원두)팀", "제품생산(가공_반제품)팀", "제품생산(가공_완제품)팀", "출고팀", "바리스타팀", "베이커리팀", "관리팀", "식품안전팀"];
-const SITES = ["해썹생산시설", "영도매장", "온천매장", "마린매장", "도모헌매장"];
+const TEAMS = ["로스팅팀", "로스팅팀(생두소분)", "제품생산(원두)팀", "제품생산(가공_반제품)팀", "제품생산(가공_완제품)팀", "출고팀", "바리스타팀", "베이커리팀", "관리팀", "식품안전팀", "구매자재팀"];
+const SITES = ["해썹생산시설", "영도매장", "온천매장", "마린매장", "도모헌매장", "중앙창고"];
 const HACCP = "해썹생산시설";
 const ROOMS = [
   ["로스팅팀", ["생두소분실", "로스팅실", "사이클론실"]],
@@ -1047,7 +1047,7 @@ function renderReporterForm(rec) {
   const syncSite = () => {
     const hc = site.value === HACCP;
     fRoom.hidden = !hc;
-    location.placeholder = hc ? "설비명·세부 위치 (예: 로스팅 1호기 배기 덕트)" : "매장 내 위치·설비 (예: 바 에스프레소 머신)";
+    location.placeholder = hc ? "설비명·세부 위치 (예: 로스팅 1호기 배기 덕트)" : "현장 내 위치·설비 (예: 바 에스프레소 머신, 창고 랙)";
   };
   site.addEventListener("change", syncSite);
   const location = h("input", { class: "in", id: "f-location", placeholder: "라인명·설비명 또는 매장 내 위치 (예: 로스팅 1호기, 바 에스프레소 머신)", value: r.location || "" });
@@ -1235,7 +1235,7 @@ async function buildDocx(rec) {
   let b = "";
   const siteName = siteOf(rec);
   b += P(r_(siteName === "해썹생산시설" ? "햅썹 생산시설 보수 접수서" : siteName + " 시설 보수 접수서", { b: true, sz: 36 }), '<w:spacing w:after="100"/><w:jc w:val="center"/>');
-  b += P(r_("해썹생산시설 · 영도 · 온천 · 마린 · 도모헌 시설 보수 요청 양식", { color: "666666" }), '<w:spacing w:after="300"/><w:jc w:val="center"/>');
+  b += P(r_("해썹생산시설 · 영도 · 온천 · 마린 · 도모헌 · 중앙창고 시설 보수 요청 양식", { color: "666666" }), '<w:spacing w:after="300"/><w:jc w:val="center"/>');
   if (rec.no) b += P(r_("접수번호 " + rec.no, { color: "666666", sz: 18 }), '<w:spacing w:after="60"/><w:jc w:val="right"/>');
   b += '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tblBorders><w:tblCellMar><w:left w:w="10" w:type="dxa"/><w:right w:w="10" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0"/></w:tblPr><w:tblGrid><w:gridCol w:w="2200"/><w:gridCol w:w="7160"/></w:tblGrid>';
   b += secRow("■ 기본 정보");
